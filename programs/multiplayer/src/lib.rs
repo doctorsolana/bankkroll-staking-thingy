@@ -7,9 +7,9 @@ use anchor_spl::{
 declare_id!("EC6VgGSamTvY3XRuYC7uyW1DZMrvuRkfztdy6YeCfNxX");
 
 #[program]
-mod hello_anchor {
-    use anchor_spl::token;
+mod multiplayer {
 
+    use anchor_spl::token; //idk why i neeed this import here when there is one above lets see
     use super::*;
 
     pub fn create_game(ctx: Context<CreateGame>, max_players: u32) -> Result<()> {
@@ -58,8 +58,8 @@ mod hello_anchor {
 
         // transfer wager and createor_fee_amount to the game account token account
         let cpi_accounts = SplTransfer {
-            from: ctx.accounts.player_account_token.to_account_info(),
-            to: ctx.accounts.game_account_token.to_account_info(),
+            from: ctx.accounts.player_account_ata.to_account_info(),
+            to: ctx.accounts.game_account_ta.to_account_info(),
             authority: ctx.accounts.player_account.to_account_info(),
           };
           let cpi_program = ctx.accounts.token_program.to_account_info();
@@ -98,8 +98,8 @@ mod hello_anchor {
     
             // Set up the transfer CPI with the PDA as the authority.
             let cpi_accounts = SplTransfer {
-                from: ctx.accounts.game_account_token.to_account_info(),
-                to: ctx.accounts.player_account_token.to_account_info(),
+                from: ctx.accounts.game_account_ta.to_account_info(),
+                to: ctx.accounts.player_account_ata.to_account_info(),
                 authority: ctx.accounts.game_account.to_account_info(),
             };
             let cpi_program = ctx.accounts.token_program.to_account_info();
@@ -133,7 +133,7 @@ pub struct CreateGame<'info> {
         token::authority = game_account, 
         seeds = [game_account.key().as_ref()], bump
           )]
-    pub game_account_token_account: Account<'info, TokenAccount>,
+    pub game_account_ta_account: Account<'info, TokenAccount>,
     #[account(mut)]
     pub game_maker: Signer<'info>,
 
@@ -156,13 +156,13 @@ pub struct JoinLeaveGame<'info> {
 
     //game associated token account
     #[account(mut, seeds = [game_account.key().as_ref()], bump)]
-    pub game_account_token: Account<'info, TokenAccount>,
+    pub game_account_ta: Account<'info, TokenAccount>,
 
     //player associated token account
     #[account(mut, 
     associated_token::mint = mint,
     associated_token::authority = player_account,)]
-    pub player_account_token: Account<'info, TokenAccount>,
+    pub player_account_ata: Account<'info, TokenAccount>,
 
     pub system_program: Program<'info, System>,
     pub associated_token_program: Program<'info, AssociatedToken>,
