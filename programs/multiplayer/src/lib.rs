@@ -1,12 +1,10 @@
 use anchor_lang::prelude::*;
 use anchor_spl::{
-    // associated_token::AssociatedToken,
+    associated_token::AssociatedToken,
     token::{Mint, Token, TokenAccount},
 };
 
-// This is your program's public key and it will update
-// automatically when you build the project.
-declare_id!("DgVtNY9ZPv68mmj69Hxo4pFTwo4RxfdCziy8irHj8dzp");
+declare_id!("EC6VgGSamTvY3XRuYC7uyW1DZMrvuRkfztdy6YeCfNxX");
 
 #[program]
 mod hello_anchor {
@@ -31,10 +29,14 @@ mod hello_anchor {
     ) -> Result<()> {
         let game_account = &mut ctx.accounts.game_account;
         let player_account = &ctx.accounts.player_account;
+
+        // calcualte creator fee amount from creator fee bip
+        let creator_fee_amount = (wager * creator_fee as u64) / 10000;
+
         let player = Player {
             creator_address: creator_address,
             user: *player_account.key,
-            creator_fee,
+            creator_fee_amount: creator_fee_amount,
             wager: wager,
         };
 
@@ -81,6 +83,7 @@ pub struct CreateGame<'info> {
 
     pub system_program: Program<'info, System>,
     pub token_program: Program<'info, Token>,
+    
 }
 
 #[derive(Accounts)]
@@ -99,11 +102,14 @@ pub struct JoinLeaveGame<'info> {
     #[account(mut, seeds = [game_account.key().as_ref()], bump)]
     pub game_account_token: Account<'info, TokenAccount>,
 
-    // //player associated token account
-    // #[account(mut, )]
-    // pub player_account_token: Account<'info, TokenAccount>,
+    //player associated token account
+    #[account(mut, 
+    associated_token::mint = mint,
+    associated_token::authority = player_account,)]
+    pub player_account_token: Account<'info, TokenAccount>,
 
     pub system_program: Program<'info, System>,
+    pub associated_token_program: Program<'info, AssociatedToken>,
     pub token_program: Program<'info, Token>,
 }
 
@@ -121,11 +127,12 @@ pub struct Game {
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug)]
 pub struct Player {
-    pub creator_address: Pubkey,
-    pub user: Pubkey,
-    pub creator_fee: u32,
-    pub wager: u64,
+    creator_address: Pubkey,
+    user: Pubkey,
+    creator_fee_amount: u64, // Actual fee amount in terms of the wager
+    wager: u64,
 }
+
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug, PartialEq, Eq)]
 pub enum GameState {
