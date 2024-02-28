@@ -1,13 +1,15 @@
 use anchor_lang::prelude::*;
 use anchor_spl::{
     associated_token::AssociatedToken,
-    token::{Mint, Token, TokenAccount},
+    token::{Mint, Token, TokenAccount, Transfer as SplTransfer},
 };
 
 declare_id!("EC6VgGSamTvY3XRuYC7uyW1DZMrvuRkfztdy6YeCfNxX");
 
 #[program]
 mod hello_anchor {
+    use anchor_spl::token;
+
     use super::*;
 
     pub fn create_game(ctx: Context<CreateGame>, max_players: u32) -> Result<()> {
@@ -54,12 +56,66 @@ mod hello_anchor {
         //add the player to the game
         game_account.players.push(player);
 
+        // transfer wager and createor_fee_amount to the game account token account
+        let cpi_accounts = SplTransfer {
+            from: ctx.accounts.player_account_token.to_account_info(),
+            to: ctx.accounts.game_account_token.to_account_info(),
+            authority: ctx.accounts.player_account.to_account_info(),
+          };
+          let cpi_program = ctx.accounts.token_program.to_account_info();
+          let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
+          token::transfer(cpi_ctx, wager + creator_fee_amount)?;
+
         //if max players is reached, start the game
         if game_account.players.len() == game_account.max_players as usize {
             game_account.state = GameState::Playing;
         }
         Ok(())
     }
+
+    pub fn leave_game(ctx: Context<JoinLeaveGame>) -> Result<()> {
+        // Ensure the game is in the correct state before proceeding.
+        if ctx.accounts.game_account.state != GameState::Waiting {
+            return Err(ErrorCode::GameInProgress.into());
+        }
+    
+        // Attempt to find the player in the game.
+        if let Some(index) = ctx.accounts.game_account.players.iter().position(|p| p.user == *ctx.accounts.player_account.key) {
+            // Calculate the total amount to transfer back (wager + creator fee).
+            let total_amount = ctx.accounts.game_account.players[index].wager + ctx.accounts.game_account.players[index].creator_fee_amount;
+    
+            // Specify the PDA and bump seed for signing the CPI.
+            // This assumes you have the bump seed available. If not, you'll need to derive it using `Pubkey::find_program_address`.
+            let (game_account_pda, bump_seed) = Pubkey::find_program_address(&[b"GAME", ctx.accounts.game_account.game_maker.as_ref(), &ctx.accounts.game_account.max_players.to_le_bytes()], ctx.program_id);
+    
+            // Ensure the derived PDA matches the expected game_account address.
+            if game_account_pda != ctx.accounts.game_account.key() {
+                return Err(ErrorCode::InvalidGameAccount.into());
+            }
+    
+            let seeds = &[&b"GAME"[..], ctx.accounts.game_account.game_maker.as_ref(), &ctx.accounts.game_account.max_players.to_le_bytes(), &[bump_seed]];
+            let signer = &[&seeds[..]];
+    
+            // Set up the transfer CPI with the PDA as the authority.
+            let cpi_accounts = SplTransfer {
+                from: ctx.accounts.game_account_token.to_account_info(),
+                to: ctx.accounts.player_account_token.to_account_info(),
+                authority: ctx.accounts.game_account.to_account_info(),
+            };
+            let cpi_program = ctx.accounts.token_program.to_account_info();
+            let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, signer);
+            token::transfer(cpi_ctx, total_amount)?;
+    
+            // Remove the player from the game.
+            ctx.accounts.game_account.players.remove(index);
+        } else {
+            // Player not found in the game.
+            return Err(ErrorCode::PlayerNotInGame.into());
+        }
+    
+        Ok(())
+    }
+    
 
 }
 
@@ -144,4 +200,11 @@ pub enum GameState {
 pub enum ErrorCode {
     #[msg("Player is already in the game")]
     PlayerAlreadyInGame,
+    #[msg("Player is not in the game")]
+    PlayerNotInGame,
+    #[msg("Game is already in progress")]
+    GameInProgress,
+    #[msg("Invalid game account")]
+    InvalidGameAccount,
+
 }
