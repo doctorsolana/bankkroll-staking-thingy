@@ -115,8 +115,10 @@ mod multiplayer {
     
         Ok(())
     }
-    
 
+
+    pub fn settle_game(ctx: Context<SettleGame>) -> Result<()> {
+        Ok(())
 }
 
 #[derive(Accounts)]
@@ -163,6 +165,59 @@ pub struct JoinLeaveGame<'info> {
     associated_token::mint = mint,
     associated_token::authority = player_account,)]
     pub player_account_ata: Account<'info, TokenAccount>,
+
+    pub system_program: Program<'info, System>,
+    pub associated_token_program: Program<'info, AssociatedToken>,
+    pub token_program: Program<'info, Token>,
+}
+
+#[derive(accounts)]
+pub struct SettleGame<'info> {
+    #[account]
+    pub rng: Signer<'info>,
+
+    #[account(mut)]
+    pub game_account: Account<'info, Game>,
+
+    #[account(mut, seeds = [game_account.key().as_ref()], bump)]
+    pub game_account_ta: Account<'info, TokenAccount>,
+
+    #[account(address = game_account.mint)]
+    pub mint: Account<'info, Mint>,
+
+    // Player 1
+    #[account(address_game_account.players[0].user)]
+    pub player_1: Option<UncheckedAccount<'info>>,
+
+    #[account(mut, 
+        associated_token::mint = game_account.mint,
+        associated_token::authority = player_1)]
+    pub player_1_ata: Option<Account<'info, TokenAccount>>,
+
+    #[account(address_game_account.players[0].creator_address)]
+    pub creator_1: Option<UncheckedAccount<'info>>,
+
+    #[account(mut, 
+        associated_token::mint = game_account.mint,
+        associated_token::authority = creator_1)]
+    pub creator_1_ata: Option<Account<'info, TokenAccount>>,
+
+    // Player 2
+    #[account(address_game_account.players[1].user)]
+    pub player_2: Option<UncheckedAccount<'info>>,
+
+    #[account(mut, 
+        associated_token::mint = game_account.mint,
+        associated_token::authority = player_2)]
+    pub player_2_ata: Option<Account<'info, TokenAccount>>,
+
+    #[account(address_game_account.players[1].creator_address)]
+    pub creator_2: Option<UncheckedAccount<'info>>,
+
+    #[account(mut, 
+        associated_token::mint = game_account.mint,
+        associated_token::authority = creator_2)]
+    pub creator_2_ata: Option<Account<'info, TokenAccount>>,
 
     pub system_program: Program<'info, System>,
     pub associated_token_program: Program<'info, AssociatedToken>,
