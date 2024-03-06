@@ -3,6 +3,7 @@ use anchor_spl::{
     associated_token::AssociatedToken,
     token::{Mint, Token, TokenAccount, Transfer as SplTransfer},
 };
+use std::collections::HashMap;
 
 declare_id!("EC6VgGSamTvY3XRuYC7uyW1DZMrvuRkfztdy6YeCfNxX");
 
@@ -27,17 +28,15 @@ mod multiplayer {
         ctx: Context<JoinLeaveGame>,
         creator_fee: u32,
         wager: u64,
-        creator_address: Pubkey,
     ) -> Result<()> {
         let game_account = &mut ctx.accounts.game_account;
-        let player_account = &ctx.accounts.player_account;
 
         // calcualte creator fee amount from creator fee bip
         let creator_fee_amount = (wager * creator_fee as u64) / 10000;
 
         let player = Player {
-            creator_address: creator_address,
-            user: *player_account.key,
+            creator_address_ata: *ctx.accounts.creator_ata.to_account_info().key,
+            user_ata: *ctx.accounts.player_ata.to_account_info().key,
             creator_fee_amount: creator_fee_amount,
             wager: wager,
         };
@@ -49,7 +48,7 @@ mod multiplayer {
 
         //check that the player is not already in the game
         for p in game_account.players.iter() {
-            if p.user == player.user {
+            if p.user_ata == player.user_ata {
                 return Err(ErrorCode::PlayerAlreadyInGame.into());
             }
         }
@@ -58,7 +57,7 @@ mod multiplayer {
 
         // transfer wager and createor_fee_amount to the game account token account
         let cpi_accounts = SplTransfer {
-            from: ctx.accounts.player_account_ata.to_account_info(),
+            from: ctx.accounts.player_ata.to_account_info(),
             to: ctx.accounts.game_account_ta.to_account_info(),
             authority: ctx.accounts.player_account.to_account_info(),
           };
@@ -80,7 +79,7 @@ mod multiplayer {
         }
     
         // Attempt to find the player in the game.
-        if let Some(index) = ctx.accounts.game_account.players.iter().position(|p| p.user == *ctx.accounts.player_account.key) {
+        if let Some(index) = ctx.accounts.game_account.players.iter().position(|p| p.user_ata == *ctx.accounts.player_account.key) {
             // Calculate the total amount to transfer back (wager + creator fee).
             let total_amount = ctx.accounts.game_account.players[index].wager + ctx.accounts.game_account.players[index].creator_fee_amount;
     
@@ -99,7 +98,7 @@ mod multiplayer {
             // Set up the transfer CPI with the PDA as the authority.
             let cpi_accounts = SplTransfer {
                 from: ctx.accounts.game_account_ta.to_account_info(),
-                to: ctx.accounts.player_account_ata.to_account_info(),
+                to: ctx.accounts.player_ata.to_account_info(),
                 authority: ctx.accounts.game_account.to_account_info(),
             };
             let cpi_program = ctx.accounts.token_program.to_account_info();
@@ -117,9 +116,37 @@ mod multiplayer {
     }
 
 
+    
+
     pub fn settle_game(ctx: Context<SettleGame>) -> Result<()> {
+        let token_program = &ctx.accounts.token_program;
+
+        let creator_atas = vec![
+            &ctx.accounts.creator_1_ata,
+            &ctx.accounts.creator_2_ata,
+            &ctx.accounts.creator_3_ata,
+        ];
+
+        let (game_account_pda, bump_seed) = Pubkey::find_program_address(&[b"GAME", ctx.accounts.game_account.game_maker.as_ref(), &ctx.accounts.game_account.max_players.to_le_bytes()], ctx.program_id);
+
+        for (i, player) in ctx.accounts.game_account.players.iter().enumerate() {
+            if let Some(Some(creator_account)) = creator_atas.get(i) {
+                let cpi_accounts = SplTransfer {
+                    from: ctx.accounts.game_account_ta.to_account_info(),
+                    to: creator_account.to_account_info(),
+                    authority: ctx.accounts.game_account.to_account_info(),
+                };
+                let seeds = &[&b"GAME"[..], ctx.accounts.game_account.game_maker.as_ref(), &ctx.accounts.game_account.max_players.to_le_bytes(), &[bump_seed]];
+                let signer = &[&seeds[..]];
+                let cpi_ctx = CpiContext::new_with_signer(token_program.to_account_info(), cpi_accounts, signer);
+                token::transfer(cpi_ctx, player.creator_fee_amount)?;
+            }
+        }
+
         Ok(())
     }
+
+    
 }
 
 #[derive(Accounts)]
@@ -150,22 +177,31 @@ pub struct JoinLeaveGame<'info> {
     #[account(mut)]
     pub game_account: Account<'info, Game>,
 
-    #[account(mut)]
-    pub player_account: Signer<'info>,
+    //game associated token account
+    #[account(mut, seeds = [game_account.key().as_ref()], bump)]
+    pub game_account_ta: Account<'info, TokenAccount>,
 
     //mint account
     #[account(address = game_account.mint)]
     pub mint: Account<'info, Mint>,
 
-    //game associated token account
-    #[account(mut, seeds = [game_account.key().as_ref()], bump)]
-    pub game_account_ta: Account<'info, TokenAccount>,
+    #[account(mut)]
+    pub player_account: Signer<'info>,
 
     //player associated token account
     #[account(mut, 
-    associated_token::mint = mint,
-    associated_token::authority = player_account,)]
-    pub player_account_ata: Account<'info, TokenAccount>,
+        associated_token::mint = mint,
+        associated_token::authority = player_account,)]
+    pub player_ata: Account<'info, TokenAccount>,
+
+    //creator address
+    pub creator_address: UncheckedAccount<'info>,
+
+    //creator associated token account
+    #[account(mut, 
+        associated_token::mint = mint,
+        associated_token::authority = creator_address)]
+    pub creator_ata: Account<'info, TokenAccount>,
 
     pub system_program: Program<'info, System>,
     pub associated_token_program: Program<'info, AssociatedToken>,
@@ -186,39 +222,26 @@ pub struct SettleGame<'info> {
     #[account(address = game_account.mint)]
     pub mint: Account<'info, Mint>,
 
-    // Player 1
-    #[account(address = game_account.players[0].user)]
-    pub player_1: Option<UncheckedAccount<'info>>,
-
-    #[account(mut, 
-        associated_token::mint = game_account.mint,
-        associated_token::authority = player_1)]
+    // Plyaer 1
+    #[account(mut, address = game_account.players[0].user_ata)]
     pub player_1_ata: Option<Account<'info, TokenAccount>>,
 
-    #[account(address = game_account.players[0].creator_address)]
-    pub creator_1: Option<UncheckedAccount<'info>>,
-
-    #[account(mut, 
-        associated_token::mint = game_account.mint,
-        associated_token::authority = creator_1)]
+    #[account(mut, address = game_account.players[0].creator_address_ata)]
     pub creator_1_ata: Option<Account<'info, TokenAccount>>,
 
-    // // Player 2
-    // #[account(address = game_account.players[1].user)]
-    // pub player_2: Option<UncheckedAccount<'info>>,
+    // Plyaer 2
+    #[account(mut, address = game_account.players[1].user_ata)]
+    pub player_2_ata: Option<Account<'info, TokenAccount>>,
 
-    // #[account(mut, 
-    //     associated_token::mint = game_account.mint,
-    //     associated_token::authority = player_2)]
-    // pub player_2_ata: Option<Account<'info, TokenAccount>>,
+    #[account(mut, address = game_account.players[1].creator_address_ata)]
+    pub creator_2_ata: Option<Account<'info, TokenAccount>>,
 
-    // #[account(address = game_account.players[1].creator_address)]
-    // pub creator_2: Option<UncheckedAccount<'info>>,
+    // Plyaer 3
+    #[account(mut, address = game_account.players[2].user_ata)]
+    pub player_3_ata: Option<Account<'info, TokenAccount>>,
 
-    // #[account(mut, 
-    //     associated_token::mint = game_account.mint,
-    //     associated_token::authority = creator_2)]
-    // pub creator_2_ata: Option<Account<'info, TokenAccount>>,
+    #[account(mut, address = game_account.players[2].creator_address_ata)]
+    pub creator_3_ata: Option<Account<'info, TokenAccount>>,
 
     pub system_program: Program<'info, System>,
     pub associated_token_program: Program<'info, AssociatedToken>,
@@ -239,8 +262,8 @@ pub struct Game {
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug)]
 pub struct Player {
-    creator_address: Pubkey,
-    user: Pubkey,
+    creator_address_ata: Pubkey,
+    user_ata: Pubkey,
     creator_fee_amount: u64, // Actual fee amount in terms of the wager
     wager: u64,
 }
