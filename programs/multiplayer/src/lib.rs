@@ -119,12 +119,13 @@ mod multiplayer {
 
     pub fn settle_game(ctx: Context<SettleGame>) -> Result<()> {
         Ok(())
+    }
 }
 
 #[derive(Accounts)]
 #[instruction(max_players: u32)] // just testing
 pub struct CreateGame<'info> {
-    #[account(init, payer = game_maker, space = 8 + 1000, seeds = [b"GAME",game_maker.key().as_ref(), &max_players.to_le_bytes()], bump )] // Adjust space as needed
+    #[account(init, payer = game_maker, space = 8 + 1000, seeds = [b"GAME",game_maker.key().as_ref(), &max_players.to_le_bytes()], bump )] 
     pub game_account: Account<'info, Game>,
     //mint account
     pub mint: Account<'info, Mint>,
@@ -171,9 +172,9 @@ pub struct JoinLeaveGame<'info> {
     pub token_program: Program<'info, Token>,
 }
 
-#[derive(accounts)]
+#[derive(Accounts)]
 pub struct SettleGame<'info> {
-    #[account]
+    #[account(mut)]
     pub rng: Signer<'info>,
 
     #[account(mut)]
@@ -186,7 +187,7 @@ pub struct SettleGame<'info> {
     pub mint: Account<'info, Mint>,
 
     // Player 1
-    #[account(address_game_account.players[0].user)]
+    #[account(address = game_account.players[0].user)]
     pub player_1: Option<UncheckedAccount<'info>>,
 
     #[account(mut, 
@@ -194,7 +195,7 @@ pub struct SettleGame<'info> {
         associated_token::authority = player_1)]
     pub player_1_ata: Option<Account<'info, TokenAccount>>,
 
-    #[account(address_game_account.players[0].creator_address)]
+    #[account(address = game_account.players[0].creator_address)]
     pub creator_1: Option<UncheckedAccount<'info>>,
 
     #[account(mut, 
@@ -202,22 +203,22 @@ pub struct SettleGame<'info> {
         associated_token::authority = creator_1)]
     pub creator_1_ata: Option<Account<'info, TokenAccount>>,
 
-    // Player 2
-    #[account(address_game_account.players[1].user)]
-    pub player_2: Option<UncheckedAccount<'info>>,
+    // // Player 2
+    // #[account(address = game_account.players[1].user)]
+    // pub player_2: Option<UncheckedAccount<'info>>,
 
-    #[account(mut, 
-        associated_token::mint = game_account.mint,
-        associated_token::authority = player_2)]
-    pub player_2_ata: Option<Account<'info, TokenAccount>>,
+    // #[account(mut, 
+    //     associated_token::mint = game_account.mint,
+    //     associated_token::authority = player_2)]
+    // pub player_2_ata: Option<Account<'info, TokenAccount>>,
 
-    #[account(address_game_account.players[1].creator_address)]
-    pub creator_2: Option<UncheckedAccount<'info>>,
+    // #[account(address = game_account.players[1].creator_address)]
+    // pub creator_2: Option<UncheckedAccount<'info>>,
 
-    #[account(mut, 
-        associated_token::mint = game_account.mint,
-        associated_token::authority = creator_2)]
-    pub creator_2_ata: Option<Account<'info, TokenAccount>>,
+    // #[account(mut, 
+    //     associated_token::mint = game_account.mint,
+    //     associated_token::authority = creator_2)]
+    // pub creator_2_ata: Option<Account<'info, TokenAccount>>,
 
     pub system_program: Program<'info, System>,
     pub associated_token_program: Program<'info, AssociatedToken>,
