@@ -3,7 +3,6 @@ use anchor_spl::{
     associated_token::AssociatedToken,
     token::{Mint, Token, TokenAccount, Transfer as SplTransfer},
 };
-use std::collections::HashMap;
 
 declare_id!("EC6VgGSamTvY3XRuYC7uyW1DZMrvuRkfztdy6YeCfNxX");
 
@@ -21,6 +20,8 @@ mod multiplayer {
         game_account.players = Vec::new();
         game_account.game_id = 0;
         game_account.mint = *ctx.accounts.mint.to_account_info().key;
+        // game_account.bump = [*ctx.bumps.get("game_account").unwrap()]; // anchor 0.28
+        game_account.bump = ctx.bumps.game_account; // anchor 0.29
         Ok(())
     }
 
@@ -83,16 +84,7 @@ mod multiplayer {
             // Calculate the total amount to transfer back (wager + creator fee).
             let total_amount = ctx.accounts.game_account.players[index].wager + ctx.accounts.game_account.players[index].creator_fee_amount;
     
-            // Specify the PDA and bump seed for signing the CPI.
-            // This assumes you have the bump seed available. If not, you'll need to derive it using `Pubkey::find_program_address`.
-            let (game_account_pda, bump_seed) = Pubkey::find_program_address(&[b"GAME", ctx.accounts.game_account.game_maker.as_ref(), &ctx.accounts.game_account.max_players.to_le_bytes()], ctx.program_id);
-    
-            // Ensure the derived PDA matches the expected game_account address.
-            if game_account_pda != ctx.accounts.game_account.key() {
-                return Err(ErrorCode::InvalidGameAccount.into());
-            }
-    
-            let seeds = &[&b"GAME"[..], ctx.accounts.game_account.game_maker.as_ref(), &ctx.accounts.game_account.max_players.to_le_bytes(), &[bump_seed]];
+            let seeds = &[&b"GAME"[..], ctx.accounts.game_account.game_maker.as_ref(), &ctx.accounts.game_account.max_players.to_le_bytes(), &[ctx.accounts.game_account.bump]];
             let signer = &[&seeds[..]];
     
             // Set up the transfer CPI with the PDA as the authority.
@@ -124,11 +116,9 @@ mod multiplayer {
         let creator_atas = vec![
             &ctx.accounts.creator_1_ata,
             &ctx.accounts.creator_2_ata,
-            &ctx.accounts.creator_3_ata,
+            // &ctx.accounts.creator_3_ata,
         ];
-
-        let (game_account_pda, bump_seed) = Pubkey::find_program_address(&[b"GAME", ctx.accounts.game_account.game_maker.as_ref(), &ctx.accounts.game_account.max_players.to_le_bytes()], ctx.program_id);
-
+        
         for (i, player) in ctx.accounts.game_account.players.iter().enumerate() {
             if let Some(Some(creator_account)) = creator_atas.get(i) {
                 let cpi_accounts = SplTransfer {
@@ -136,7 +126,7 @@ mod multiplayer {
                     to: creator_account.to_account_info(),
                     authority: ctx.accounts.game_account.to_account_info(),
                 };
-                let seeds = &[&b"GAME"[..], ctx.accounts.game_account.game_maker.as_ref(), &ctx.accounts.game_account.max_players.to_le_bytes(), &[bump_seed]];
+                let seeds = &[&b"GAME"[..], ctx.accounts.game_account.game_maker.as_ref(), &ctx.accounts.game_account.max_players.to_le_bytes(), &[ctx.accounts.game_account.bump]];
                 let signer = &[&seeds[..]];
                 let cpi_ctx = CpiContext::new_with_signer(token_program.to_account_info(), cpi_accounts, signer);
                 token::transfer(cpi_ctx, player.creator_fee_amount)?;
@@ -145,7 +135,6 @@ mod multiplayer {
 
         Ok(())
     }
-
     
 }
 
@@ -169,7 +158,6 @@ pub struct CreateGame<'info> {
 
     pub system_program: Program<'info, System>,
     pub token_program: Program<'info, Token>,
-    
 }
 
 #[derive(Accounts)]
@@ -213,10 +201,13 @@ pub struct SettleGame<'info> {
     #[account(mut)]
     pub rng: Signer<'info>,
 
-    #[account(mut)]
+    #[account(mut, address = game_account.game_maker)]
+    pub game_maker: AccountInfo<'info>,
+
+    #[account(mut, close = game_maker)]
     pub game_account: Account<'info, Game>,
 
-    #[account(mut, seeds = [game_account.key().as_ref()], bump)]
+    #[account(mut, close = game_maker, seeds = [game_account.key().as_ref()], bump)]
     pub game_account_ta: Account<'info, TokenAccount>,
 
     #[account(address = game_account.mint)]
@@ -236,12 +227,12 @@ pub struct SettleGame<'info> {
     #[account(mut, address = game_account.players[1].creator_address_ata)]
     pub creator_2_ata: Option<Account<'info, TokenAccount>>,
 
-    // Plyaer 3
-    #[account(mut, address = game_account.players[2].user_ata)]
-    pub player_3_ata: Option<Account<'info, TokenAccount>>,
+    // // Plyaer 3
+    // #[account(mut, address = game_account.players[2].user_ata)]
+    // pub player_3_ata: Option<Account<'info, TokenAccount>>,
 
-    #[account(mut, address = game_account.players[2].creator_address_ata)]
-    pub creator_3_ata: Option<Account<'info, TokenAccount>>,
+    // #[account(mut, address = game_account.players[2].creator_address_ata)]
+    // pub creator_3_ata: Option<Account<'info, TokenAccount>>,
 
     pub system_program: Program<'info, System>,
     pub associated_token_program: Program<'info, AssociatedToken>,
@@ -257,6 +248,7 @@ pub struct Game {
     pub max_players: u32,
     pub players: Vec<Player>,
     pub game_id: u64,
+    pub bump: u8,
 }
 
 
@@ -285,5 +277,4 @@ pub enum ErrorCode {
     GameInProgress,
     #[msg("Invalid game account")]
     InvalidGameAccount,
-
 }
