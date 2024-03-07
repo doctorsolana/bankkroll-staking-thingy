@@ -6,4 +6,12 @@ target
 node_modules
 test-ledger
 .yarn
-.app/node_modules
+app/node_modules
+app/dist/
+app/dev-dist/
+app/DS_Store
+app/vscode
+app/trash.*
+app/turbo
+app/.pnp
+app/.pnp.js
