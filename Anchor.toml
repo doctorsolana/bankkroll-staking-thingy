@@ -3,12 +3,14 @@ seeds = false
 skip-lint = false
 [programs.localnet]
 multiplayer = "DgVtNY9ZPv68mmj69Hxo4pFTwo4RxfdCziy8irHj8dzp"
+[programs.devnet]
+multiplayer = "DgVtNY9ZPv68mmj69Hxo4pFTwo4RxfdCziy8irHj8dzp"
 
 [registry]
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "Localnet"
+cluster = "devnet"
 wallet = "/home/oliverlinux/.config/solana/id.json"
 
 [scripts]

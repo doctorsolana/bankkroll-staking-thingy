@@ -1,0 +1,346 @@
+{
+  "version": "0.1.0",
+  "name": "multiplayer",
+  "instructions": [
+    {
+      "name": "createGame",
+      "accounts": [
+        {
+          "name": "gameAccount",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "mint",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "gameAccountTaAccount",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "gameMaker",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "tokenProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "maxPlayers",
+          "type": "u32"
+        }
+      ]
+    },
+    {
+      "name": "joinGame",
+      "accounts": [
+        {
+          "name": "gameAccount",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "gameAccountTa",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "mint",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "playerAccount",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "playerAta",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "creatorAddress",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "creatorAta",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "associatedTokenProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "tokenProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "creatorFee",
+          "type": "u32"
+        },
+        {
+          "name": "wager",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "leaveGame",
+      "accounts": [
+        {
+          "name": "gameAccount",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "gameAccountTa",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "mint",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "playerAccount",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "playerAta",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "associatedTokenProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "tokenProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "settleGame",
+      "accounts": [
+        {
+          "name": "rng",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "gameMaker",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "gameAccount",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "gameAccountTa",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "mint",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "winnerAta",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "player1Ata",
+          "isMut": true,
+          "isSigner": false,
+          "isOptional": true
+        },
+        {
+          "name": "creator1Ata",
+          "isMut": true,
+          "isSigner": false,
+          "isOptional": true
+        },
+        {
+          "name": "player2Ata",
+          "isMut": true,
+          "isSigner": false,
+          "isOptional": true
+        },
+        {
+          "name": "creator2Ata",
+          "isMut": true,
+          "isSigner": false,
+          "isOptional": true
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "associatedTokenProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "tokenProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Game",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "gameMaker",
+            "type": "publicKey"
+          },
+          {
+            "name": "state",
+            "type": {
+              "defined": "GameState"
+            }
+          },
+          {
+            "name": "mint",
+            "type": "publicKey"
+          },
+          {
+            "name": "maxPlayers",
+            "type": "u32"
+          },
+          {
+            "name": "players",
+            "type": {
+              "vec": {
+                "defined": "Player"
+              }
+            }
+          },
+          {
+            "name": "gameId",
+            "type": "u64"
+          },
+          {
+            "name": "createdAt",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    }
+  ],
+  "types": [
+    {
+      "name": "Player",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "creatorAddressAta",
+            "type": "publicKey"
+          },
+          {
+            "name": "userAta",
+            "type": "publicKey"
+          },
+          {
+            "name": "creatorFeeAmount",
+            "type": "u64"
+          },
+          {
+            "name": "wager",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "GameState",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Waiting"
+          },
+          {
+            "name": "Playing"
+          }
+        ]
+      }
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "PlayerAlreadyInGame",
+      "msg": "Player is already in the game"
+    },
+    {
+      "code": 6001,
+      "name": "PlayerNotInGame",
+      "msg": "Player is not in the game"
+    },
+    {
+      "code": 6002,
+      "name": "GameInProgress",
+      "msg": "Game is already in progress"
+    },
+    {
+      "code": 6003,
+      "name": "InvalidGameAccount",
+      "msg": "Invalid game account"
+    }
+  ],
+  "metadata": {
+    "address": "DgVtNY9ZPv68mmj69Hxo4pFTwo4RxfdCziy8irHj8dzp"
+  }
+}
