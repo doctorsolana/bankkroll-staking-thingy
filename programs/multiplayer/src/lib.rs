@@ -5,20 +5,20 @@ use anchor_spl::{
 };
 use anchor_spl::token;
 
-declare_id!("DgVtNY9ZPv68mmj69Hxo4pFTwo4RxfdCziy8irHj8dzp");
+declare_id!("6hGVGMWPQirQGq4j7KMo2r1t9YN9N7RjbRDkZ1Xu3a28");
 
 #[program]
 mod multiplayer {
 
     use super::*;
 
-    pub fn create_game(ctx: Context<CreateGame>, max_players: u32) -> Result<()> {
+    pub fn create_game(ctx: Context<CreateGame>, max_players: u32, unix_timestamp: String, ) -> Result<()> {
         let game_account = &mut ctx.accounts.game_account;
         game_account.game_maker = *ctx.accounts.game_maker.key;
         game_account.state = GameState::Waiting;
         game_account.max_players = max_players;
         game_account.players = Vec::new();
-        game_account.created_at = Clock::get()?.unix_timestamp;
+        game_account.unix_timestamp_str = unix_timestamp;
         game_account.game_id = 0;
         game_account.mint = *ctx.accounts.mint.to_account_info().key;
         game_account.bump = *ctx.bumps.get("game_account").unwrap(); // anchor 0.28
@@ -90,7 +90,7 @@ mod multiplayer {
             // Calculate the total amount to transfer back (wager + creator fee).
             let total_amount = ctx.accounts.game_account.players[index].wager + ctx.accounts.game_account.players[index].creator_fee_amount + ctx.accounts.game_account.players[index].gamba_fee_amount;	
     
-            let seeds = &[&b"GAME"[..], ctx.accounts.game_account.game_maker.as_ref(), &ctx.accounts.game_account.max_players.to_le_bytes(), &[ctx.accounts.game_account.bump]];
+            let seeds = &[&b"GAME"[..], ctx.accounts.game_account.game_maker.as_ref(), &ctx.accounts.game_account.unix_timestamp_str.as_ref(), &[ctx.accounts.game_account.bump]];
             let signer = &[&seeds[..]];
     
             // Set up the transfer CPI with the PDA as the authority.
@@ -159,7 +159,7 @@ mod multiplayer {
                     to: creator_account.to_account_info(),
                     authority: ctx.accounts.game_account.to_account_info(),
                 };
-                let seeds = &[&b"GAME"[..], ctx.accounts.game_account.game_maker.as_ref(), &ctx.accounts.game_account.max_players.to_le_bytes(), &[ctx.accounts.game_account.bump]];
+                let seeds = &[&b"GAME"[..], ctx.accounts.game_account.game_maker.as_ref(), &ctx.accounts.game_account.unix_timestamp_str.as_ref(), &[ctx.accounts.game_account.bump]];
                 let signer = &[&seeds[..]];
                 let cpi_ctx = CpiContext::new_with_signer(token_program.to_account_info(), cpi_accounts, signer);
                 token::transfer(cpi_ctx, player.creator_fee_amount)?;
@@ -186,7 +186,7 @@ mod multiplayer {
             to: (*winner_ata).to_account_info(),
             authority: ctx.accounts.game_account.to_account_info(),
         };
-        let seeds = &[&b"GAME"[..], ctx.accounts.game_account.game_maker.as_ref(), &ctx.accounts.game_account.max_players.to_le_bytes(), &[ctx.accounts.game_account.bump]];
+        let seeds = &[&b"GAME"[..], ctx.accounts.game_account.game_maker.as_ref(), &ctx.accounts.game_account.unix_timestamp_str.as_ref(), &[ctx.accounts.game_account.bump]];
         let signer = &[&seeds[..]];
         let cpi_ctx = CpiContext::new_with_signer(token_program.to_account_info(), cpi_accounts, signer);
         token::transfer(cpi_ctx, total_wager)?;
@@ -197,13 +197,13 @@ mod multiplayer {
             to: ctx.accounts.gamba_fee_ata.to_account_info(),
             authority: ctx.accounts.game_account.to_account_info(),
         };
-        let seeds = &[&b"GAME"[..], ctx.accounts.game_account.game_maker.as_ref(), &ctx.accounts.game_account.max_players.to_le_bytes(), &[ctx.accounts.game_account.bump]];
+        let seeds = &[&b"GAME"[..], ctx.accounts.game_account.game_maker.as_ref(), &ctx.accounts.game_account.unix_timestamp_str.as_ref(), &[ctx.accounts.game_account.bump]];
         let signer = &[&seeds[..]];
         let cpi_ctx = CpiContext::new_with_signer(token_program.to_account_info(), cpi_accounts, signer);
         token::transfer(cpi_ctx, total_gamba_fee)?;
 
         // After settling the game, close the game_account_ta and send the rent to the game_maker
-        let seeds = &[&b"GAME"[..], ctx.accounts.game_account.game_maker.as_ref(), &ctx.accounts.game_account.max_players.to_le_bytes(), &[ctx.accounts.game_account.bump]];
+        let seeds = &[&b"GAME"[..], ctx.accounts.game_account.game_maker.as_ref(), &ctx.accounts.game_account.unix_timestamp_str.as_ref(), &[ctx.accounts.game_account.bump]];
         let signer_seeds = &[&seeds[..]];
 
         // Close the token account and send the remaining SOL to the game_maker
@@ -227,9 +227,9 @@ mod multiplayer {
 }
 
 #[derive(Accounts)]
-#[instruction(max_players: u32)] // just testing
+#[instruction(max_players: u32, unix_timestamp: String)] 
 pub struct CreateGame<'info> {
-    #[account(init, payer = game_maker, space = 8 + 1000, seeds = [b"GAME",game_maker.key().as_ref(), &max_players.to_le_bytes()], bump )] 
+    #[account(init, payer = game_maker, space = 8 + 1000, seeds = [b"GAME",game_maker.key().as_ref(), unix_timestamp.as_ref()], bump )] // use unix timestamp as seed
     pub game_account: Account<'info, Game>,
     //mint account
     pub mint: Account<'info, Mint>,
@@ -333,7 +333,7 @@ pub struct SettleGame<'info> {
     pub mint: Account<'info, Mint>,
 
     // Gamba Fee Account
-    #[account(mut)] // make sure this is inisitalized
+    #[account(mut)] // make sure this is initialized
     pub gamba_fee_ata: Account<'info, TokenAccount>,// add constraints later based on gamba state account or whatever
 
     // Player 1
@@ -374,7 +374,7 @@ pub struct Game {
     pub max_players: u32,
     pub players: Vec<Player>,
     pub game_id: u64,
-    pub created_at: i64,
+    pub unix_timestamp_str: String,
     pub bump: u8,
 }
 
