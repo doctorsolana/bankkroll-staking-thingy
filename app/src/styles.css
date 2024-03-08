@@ -26,6 +26,27 @@ button {
   margin: 5px;
 }
 
+.buttonContainer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.settleButton {
+  background: rgb(71, 147, 86); /* Sets the "Settle Game" button to blue */
+  color: white;
+}
+
+.joinLeaveButtons {
+  flex-grow: 1;
+}
+
+/* This ensures any button directly inside buttonContainer 
+   that is not the first child has a margin-left for spacing. */
+.buttonContainer > button:not(:first-child) {
+  margin-left: 10px;
+}
+
 .gameCard {
   padding: 10px;
   margin: 10px 0;
@@ -37,8 +58,6 @@ button {
 .gameCard > div {
   margin-bottom: 5px;
 }
-
-
 
 .playerInfo {
   background-color: #eef;

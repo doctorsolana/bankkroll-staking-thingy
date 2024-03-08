@@ -23,15 +23,11 @@ const parseGameState = (stateObject) => {
   }
   return "Unknown State";
 };
-const formatPlayer = (player) => {
-  return `Creator ATA: ${formatPublicKey(player.creatorAddressAta)}, User ATA: ${formatPublicKey(player.userAta)}, Creator Fee: ${player.creatorFeeAmount}, Wager: ${player.wager}`;
-};
 
 const App = () => {
   const wallet = useWallet();
   const [games, setGames] = useState([]);
   const [maxPlayers, setMaxPlayers] = useState(2); // Default to 2 players
-  const [winnerPublicKey, setWinnerPublicKey] = useState('');
   const [tokenMint, setTokenMint] = useState(''); 
 
   useEffect(() => {
@@ -73,21 +69,26 @@ const App = () => {
 
       const gameMaker = provider.wallet.publicKey;
 
-      // Generate the game_account PDA
+      const unixTimestamp = Math.floor(Date.now() / 1000).toString();
+      
+      // Generate the game_account PDA with the corrected seeds
       const [gameAccountPDA, gameAccountBump] = PublicKey.findProgramAddressSync(
-        [Buffer.from("GAME"), gameMaker.toBuffer(), new Uint8Array(new Uint32Array([maxPlayers]).buffer)],
+        [
+        Buffer.from("GAME"),
+        gameMaker.toBuffer(),
+        Buffer.from(unixTimestamp)
+        ],
         program.programId
       );
 
       // Generate the game_account_ta_account PDA
-      // Note: You need to have the `mint` account's PublicKey ready. Let's assume it's available as `mintPublicKey`.
       const [gameAccountTaAccountPDA, gameAccountTaAccountBump] = PublicKey.findProgramAddressSync(
         [gameAccountPDA.toBuffer()],
         program.programId
       );
 
       // Prepare instruction using the program method
-      const instruction = await program.methods.createGame(maxPlayers)
+      const instruction = await program.methods.createGame(new BN(maxPlayers), unixTimestamp)
         .accounts({
           gameAccount: gameAccountPDA,
           mint: mintPublicKey,
@@ -232,16 +233,17 @@ const App = () => {
 
   const settleGame = async (game) => {
     try {
-      if (!winnerPublicKey) {
-        alert("Please enter a valid public key for the winner.");
-        return;
-      }
+
       const provider = getProvider();
       const program = new Program(idl, programID, provider);
 
-      const winnerPublicKeyObj = new PublicKey(winnerPublicKey);
-  
-      // Assuming game.mint and game.players[x].user_ata are available and correctly set
+      const gamba_fee_collector = new PublicKey("5r5Sos7CQUNdN9EpwwSu1ujGVnsChv24TmrtjTWkAdNj")
+
+      const gamba_fee_ata = getAssociatedTokenAddressSync(
+        game.account.mint,
+        gamba_fee_collector,
+      );
+
       const [gameAccountTaPDA] = PublicKey.findProgramAddressSync(
         [game.publicKey.toBuffer()],
         program.programId
@@ -254,12 +256,16 @@ const App = () => {
           gameAccount: game.publicKey,
           gameAccountTa: gameAccountTaPDA,
           mint: game.account.mint,
-          winnerAta: winnerPublicKeyObj,
+          gambaFeeAta: gamba_fee_ata,
           // Player ATAs and Creator ATAs setup
           player1Ata: game.account.players[0] ? game.account.players[0].userAta : null,
           creator1Ata: game.account.players[0] ? game.account.players[0].creatorAddressAta : null,
           player2Ata: game.account.players[1] ? game.account.players[1].userAta : null,
           creator2Ata: game.account.players[1] ? game.account.players[1].creatorAddressAta : null,
+          player3Ata: game.account.players[2] ? game.account.players[2].userAta : null,
+          creator3Ata: game.account.players[2] ? game.account.players[2].creatorAddressAta : null,
+          player4Ata: game.account.players[3] ? game.account.players[3].userAta : null,
+          creator4Ata: game.account.players[3] ? game.account.players[3].creatorAddressAta : null,
           // Continue as necessary for all players
           systemProgram: SystemProgram.programId,
           associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
@@ -297,7 +303,6 @@ const App = () => {
           onChange={(e) => setMaxPlayers(e.target.value)}
           placeholder="Max Players"
         />
-      
         <input
           className="input-field"
           type="text"
@@ -326,19 +331,20 @@ const App = () => {
                   <div>Creator ATA: {formatPublicKey(player.creatorAddressAta)}</div>
                   <div>User ATA: {formatPublicKey(player.userAta)}</div>
                   <div>Creator Fee: {player.creatorFeeAmount.toString()}</div>
+                  <div>Gamba Fee: {player.gambaFeeAmount.toString()}</div>
                   <div>Wager: {player.wager.toString()}</div>
                 </div>
               ))}
             </div>
-            <button onClick={() => joinGame(game, new PublicKey("5r5Sos7CQUNdN9EpwwSu1ujGVnsChv24TmrtjTWkAdNj"), 100, 5000)}>Join Game</button>
-            <button onClick={() => leaveGame(game)}>Leave Game</button>
-            <input 
-              type="text" 
-              value={winnerPublicKey} 
-              onChange={(e) => setWinnerPublicKey(e.target.value)} 
-              placeholder="Winner's ata Key" 
-            />
-            <button onClick={() => settleGame(game)}>Settle Game</button>
+            <div className="buttonContainer">
+              <div className="joinLeaveButtons">
+                <button onClick={() => joinGame(game, new PublicKey("5r5Sos7CQUNdN9EpwwSu1ujGVnsChv24TmrtjTWkAdNj"), 100, 5000)}>Join Game</button>
+                <button onClick={() => leaveGame(game)}>Leave Game</button>
+              </div>
+              {parseGameState(game.account.state) === 'Playing' && (
+                <button className="settleButton" onClick={() => settleGame(game)}>Settle Game</button>
+              )}
+            </div>
           </div>
         ))}
       </div>

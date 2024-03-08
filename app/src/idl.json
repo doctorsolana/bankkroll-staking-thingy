@@ -40,6 +40,10 @@
         {
           "name": "maxPlayers",
           "type": "u32"
+        },
+        {
+          "name": "unixTimestamp",
+          "type": "string"
         }
       ]
     },
@@ -183,7 +187,7 @@
           "isSigner": false
         },
         {
-          "name": "winnerAta",
+          "name": "gambaFeeAta",
           "isMut": true,
           "isSigner": false
         },
@@ -207,6 +211,30 @@
         },
         {
           "name": "creator2Ata",
+          "isMut": true,
+          "isSigner": false,
+          "isOptional": true
+        },
+        {
+          "name": "player3Ata",
+          "isMut": true,
+          "isSigner": false,
+          "isOptional": true
+        },
+        {
+          "name": "creator3Ata",
+          "isMut": true,
+          "isSigner": false,
+          "isOptional": true
+        },
+        {
+          "name": "player4Ata",
+          "isMut": true,
+          "isSigner": false,
+          "isOptional": true
+        },
+        {
+          "name": "creator4Ata",
           "isMut": true,
           "isSigner": false,
           "isOptional": true
@@ -267,8 +295,8 @@
             "type": "u64"
           },
           {
-            "name": "createdAt",
-            "type": "i64"
+            "name": "unixTimestampStr",
+            "type": "string"
           },
           {
             "name": "bump",
@@ -294,6 +322,10 @@
           },
           {
             "name": "creatorFeeAmount",
+            "type": "u64"
+          },
+          {
+            "name": "gambaFeeAmount",
             "type": "u64"
           },
           {
@@ -341,6 +373,6 @@
     }
   ],
   "metadata": {
-    "address": "DgVtNY9ZPv68mmj69Hxo4pFTwo4RxfdCziy8irHj8dzp"
+    "address": "6hGVGMWPQirQGq4j7KMo2r1t9YN9N7RjbRDkZ1Xu3a28"
   }
 }
