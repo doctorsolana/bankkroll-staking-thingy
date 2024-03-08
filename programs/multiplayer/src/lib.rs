@@ -36,10 +36,14 @@ mod multiplayer {
         // calcualte creator fee amount from creator fee bip
         let creator_fee_amount = (wager * creator_fee as u64) / 10000;
 
+        //gamba placeholder fee at 1%
+        let gamba_fee_amount = (wager * 100) / 10000;
+
         let player = Player {
             creator_address_ata: *ctx.accounts.creator_ata.to_account_info().key,
             user_ata: *ctx.accounts.player_ata.to_account_info().key,
             creator_fee_amount: creator_fee_amount,
+            gamba_fee_amount: gamba_fee_amount,
             wager: wager,
         };
 
@@ -54,10 +58,11 @@ mod multiplayer {
                 return Err(ErrorCode::PlayerAlreadyInGame.into());
             }
         }
+
         //add the player to the game
         game_account.players.push(player);
 
-        // transfer wager and createor_fee_amount to the game account token account
+        // transfer wager,createor_fee_amount and game fee to the game account token account
         let cpi_accounts = SplTransfer {
             from: ctx.accounts.player_ata.to_account_info(),
             to: ctx.accounts.game_account_ta.to_account_info(),
@@ -65,7 +70,7 @@ mod multiplayer {
           };
           let cpi_program = ctx.accounts.token_program.to_account_info();
           let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
-          token::transfer(cpi_ctx, wager + creator_fee_amount)?;
+          token::transfer(cpi_ctx, wager + creator_fee_amount + gamba_fee_amount)?;
 
         //if max players is reached, start the game
         if game_account.players.len() == game_account.max_players as usize {
@@ -83,7 +88,7 @@ mod multiplayer {
         // Attempt to find the player in the game.
         if let Some(index) = ctx.accounts.game_account.players.iter().position(|p| p.user_ata == ctx.accounts.player_ata.key()) {
             // Calculate the total amount to transfer back (wager + creator fee).
-            let total_amount = ctx.accounts.game_account.players[index].wager + ctx.accounts.game_account.players[index].creator_fee_amount;
+            let total_amount = ctx.accounts.game_account.players[index].wager + ctx.accounts.game_account.players[index].creator_fee_amount + ctx.accounts.game_account.players[index].gamba_fee_amount;	
     
             let seeds = &[&b"GAME"[..], ctx.accounts.game_account.game_maker.as_ref(), &ctx.accounts.game_account.max_players.to_le_bytes(), &[ctx.accounts.game_account.bump]];
             let signer = &[&seeds[..]];
@@ -110,6 +115,12 @@ mod multiplayer {
 
 
     pub fn settle_game(ctx: Context<SettleGame>) -> Result<()> {
+
+        //check that the game is in playing state
+        if ctx.accounts.game_account.state != GameState::Playing {
+            return Err(ErrorCode::InvalidGameAccount.into());
+        }
+
         let token_program = &ctx.accounts.token_program;
 
         //log how many tokens the game token account has
@@ -117,24 +128,32 @@ mod multiplayer {
         
         msg!("Game Account Token Account has {} tokens", amount);
 
-        let player_atas = vec![
+        // Filter player_atas and creator_atas to only include Some values
+        let filtered_player_atas: Vec<&Box<Account<TokenAccount>>> = vec![
             &ctx.accounts.player_1_ata,
             &ctx.accounts.player_2_ata,
-            // &ctx.accounts.player_3_ata,
-        ];
+            &ctx.accounts.player_3_ata,
+            &ctx.accounts.player_4_ata,
+        ].into_iter().filter_map(|ata| ata.as_ref()).collect();
 
-        let creator_atas = vec![
+        let filtered_creator_atas: Vec<&Box<Account<TokenAccount>>> = vec![
             &ctx.accounts.creator_1_ata,
             &ctx.accounts.creator_2_ata,
-            // &ctx.accounts.creator_3_ata,
-        ];
+            &ctx.accounts.creator_3_ata,
+            &ctx.accounts.creator_4_ata,
+        ].into_iter().filter_map(|ata| ata.as_ref()).collect();
+
+        msg!("Filtered Player ATAs: {:?}", filtered_player_atas.len());
 
         // Initialize the total wager amount
         let mut total_wager: u64 = 0;
+        let mut total_gamba_fee: u64 = 0;
         
         for (i, player) in ctx.accounts.game_account.players.iter().enumerate() {
-            if let Some(Some(creator_account)) = creator_atas.get(i) {
-                // Transfer creator fee to each creator's account
+            // Check to ensure there's a corresponding creator account for each player
+            // Note: This assumes the number of players and creator accounts are aligned.
+            // If they are not, additional logic may be required to match them correctly.
+            if let Some(creator_account) = filtered_creator_atas.get(i) {
                 let cpi_accounts = SplTransfer {
                     from: ctx.accounts.game_account_ta.to_account_info(),
                     to: creator_account.to_account_info(),
@@ -144,24 +163,27 @@ mod multiplayer {
                 let signer = &[&seeds[..]];
                 let cpi_ctx = CpiContext::new_with_signer(token_program.to_account_info(), cpi_accounts, signer);
                 token::transfer(cpi_ctx, player.creator_fee_amount)?;
-
-                // log the creator fee amount
-                msg!("Creator Fee Amount: {}", player.creator_fee_amount);
             }
     
-            if let Some(Some(player_account)) = player_atas.get(i) {
-                // Sum up total wager amount from each player's account
-                total_wager += player.wager;
-            }
+            // Calculate total wager using all players
+            total_wager += player.wager;
+            total_gamba_fee += player.gamba_fee_amount;
         }
 
         //log total wager amount
         msg!("Total Wager Amount: {}", total_wager);
 
+        // Determine the winner using pseudorandomness
+        let timestamp = Clock::get()?.unix_timestamp;
+        let winner_index = (timestamp as usize) % filtered_player_atas.len();
+
+        // Access the winner's ATA using the winner_index
+        let winner_ata = filtered_player_atas.get(winner_index).unwrap();
+
         // Transfer total wager amount to the winner's token account
         let cpi_accounts = SplTransfer {
             from: ctx.accounts.game_account_ta.to_account_info(),
-            to: ctx.accounts.winner_ata.to_account_info(),
+            to: (*winner_ata).to_account_info(),
             authority: ctx.accounts.game_account.to_account_info(),
         };
         let seeds = &[&b"GAME"[..], ctx.accounts.game_account.game_maker.as_ref(), &ctx.accounts.game_account.max_players.to_le_bytes(), &[ctx.accounts.game_account.bump]];
@@ -169,6 +191,16 @@ mod multiplayer {
         let cpi_ctx = CpiContext::new_with_signer(token_program.to_account_info(), cpi_accounts, signer);
         token::transfer(cpi_ctx, total_wager)?;
 
+        // Transfer total gamba fee to the gamba fee account
+        let cpi_accounts = SplTransfer {
+            from: ctx.accounts.game_account_ta.to_account_info(),
+            to: ctx.accounts.gamba_fee_ata.to_account_info(),
+            authority: ctx.accounts.game_account.to_account_info(),
+        };
+        let seeds = &[&b"GAME"[..], ctx.accounts.game_account.game_maker.as_ref(), &ctx.accounts.game_account.max_players.to_le_bytes(), &[ctx.accounts.game_account.bump]];
+        let signer = &[&seeds[..]];
+        let cpi_ctx = CpiContext::new_with_signer(token_program.to_account_info(), cpi_accounts, signer);
+        token::transfer(cpi_ctx, total_gamba_fee)?;
 
         // After settling the game, close the game_account_ta and send the rent to the game_maker
         let seeds = &[&b"GAME"[..], ctx.accounts.game_account.game_maker.as_ref(), &ctx.accounts.game_account.max_players.to_le_bytes(), &[ctx.accounts.game_account.bump]];
@@ -243,7 +275,9 @@ pub struct JoinGame<'info> {
     pub creator_address: UncheckedAccount<'info>,
 
     //creator associated token account
-    #[account(mut, 
+    #[account(
+        init_if_needed,
+        payer = player_account,
         associated_token::mint = mint,
         associated_token::authority = creator_address)]
     pub creator_ata: Account<'info, TokenAccount>,
@@ -298,29 +332,33 @@ pub struct SettleGame<'info> {
     #[account(address = game_account.mint)]
     pub mint: Account<'info, Mint>,
 
-    #[account(mut)]
-    pub winner_ata: Account<'info, TokenAccount>,
+    // Gamba Fee Account
+    #[account(mut)] // make sure this is inisitalized
+    pub gamba_fee_ata: Account<'info, TokenAccount>,// add constraints later based on gamba state account or whatever
 
-    // Plyaer 1
+    // Player 1
     #[account(mut, address = game_account.players[0].user_ata)]
     pub player_1_ata: Option<Box<Account<'info, TokenAccount>>>,
-
     #[account(mut, address = game_account.players[0].creator_address_ata)]
     pub creator_1_ata: Option<Box<Account<'info, TokenAccount>>>,
 
-    // Plyaer 2
+    // Player 2
     #[account(mut, address = game_account.players[1].user_ata)]
     pub player_2_ata: Option<Box<Account<'info, TokenAccount>>>,
-
     #[account(mut, address = game_account.players[1].creator_address_ata)]
     pub creator_2_ata: Option<Box<Account<'info, TokenAccount>>>,
 
-    // // Plyaer 3
-    // #[account(mut, address = game_account.players[2].user_ata)]
-    // pub player_3_ata: Option<Account<'info, TokenAccount>>,
+    // Player 3
+    #[account(mut, address = game_account.players[2].user_ata)]
+    pub player_3_ata: Option<Box<Account<'info, TokenAccount>>>,
+    #[account(mut, address = game_account.players[2].creator_address_ata)]
+    pub creator_3_ata: Option<Box<Account<'info, TokenAccount>>>,
 
-    // #[account(mut, address = game_account.players[2].creator_address_ata)]
-    // pub creator_3_ata: Option<Account<'info, TokenAccount>>,
+    // Player 4
+    #[account(mut, address = game_account.players[3].user_ata)]
+    pub player_4_ata: Option<Box<Account<'info, TokenAccount>>>,
+    #[account(mut, address = game_account.players[3].creator_address_ata)]
+    pub creator_4_ata: Option<Box<Account<'info, TokenAccount>>>,
 
     pub system_program: Program<'info, System>,
     pub associated_token_program: Program<'info, AssociatedToken>,
@@ -346,6 +384,7 @@ pub struct Player {
     creator_address_ata: Pubkey,
     user_ata: Pubkey,
     creator_fee_amount: u64, // Actual fee amount in terms of the wager
+    gamba_fee_amount: u64, // 
     wager: u64,
 }
 
