@@ -10,4 +10,7 @@ pub enum GambaError {
     GameInProgress,
     #[msg("Invalid game account")]
     InvalidGameAccount,
+    #[msg("Cannot settle yet")]
+    CannotSettleYet
+
 }

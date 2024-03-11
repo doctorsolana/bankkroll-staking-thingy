@@ -44,7 +44,7 @@ pub fn leave_game_handler(ctx: Context<LeaveGame>) -> Result<()> {
         // Calculate the total amount to transfer back (wager + creator fee).
         let total_amount = ctx.accounts.game_account.players[index].wager + ctx.accounts.game_account.players[index].creator_fee_amount + ctx.accounts.game_account.players[index].gamba_fee_amount;	
 
-        let seeds = &[&b"GAME"[..], ctx.accounts.game_account.game_maker.as_ref(), &ctx.accounts.game_account.unix_timestamp_str.as_ref(), &[ctx.accounts.game_account.bump]];
+        let seeds = &[&b"GAME"[..], ctx.accounts.game_account.game_maker.as_ref(), &ctx.accounts.game_account.unique_identifier.to_le_bytes(), &[ctx.accounts.game_account.bump]];
         let signer = &[&seeds[..]];
 
         // Set up the transfer CPI with the PDA as the authority.

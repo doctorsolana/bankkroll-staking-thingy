@@ -1,7 +1,7 @@
 use crate::*;
 use anchor_spl::{
     associated_token::AssociatedToken,
-    token::{Mint, Token, TokenAccount, Transfer as SplTransfer, CloseAccount},
+    token::{CloseAccount, Mint, Token, TokenAccount, Transfer as SplTransfer}
 };
 use anchor_spl::token;
 
@@ -98,9 +98,13 @@ pub fn pseudo_shuffle(vec: &mut [usize], seed: u64) {
 
 pub fn settle_game_handler(ctx: Context<SettleGame>) -> Result<()> {
 
-    //check that the game is in playing state
-    if ctx.accounts.game_account.state != GameState::Playing {
-        return Err(GambaError::InvalidGameAccount.into());
+    let clock = Clock::get()?; // Get the current on-chain time
+    let current_timestamp = clock.unix_timestamp;
+
+    // The game can be settled if it's in the Playing state OR the current time is beyond the expiration timestamp
+    if !(ctx.accounts.game_account.state == GameState::Playing || current_timestamp > ctx.accounts.game_account.game_expiration_timestamp) {
+        msg!("Game cannot be settled at this time.");
+        return Err(GambaError::CannotSettleYet.into());
     }
 
     let token_program = &ctx.accounts.token_program;
@@ -139,7 +143,7 @@ pub fn settle_game_handler(ctx: Context<SettleGame>) -> Result<()> {
                 to: creator_account.to_account_info(),
                 authority: ctx.accounts.game_account.to_account_info(),
             };
-            let seeds = &[&b"GAME"[..], ctx.accounts.game_account.game_maker.as_ref(), &ctx.accounts.game_account.unix_timestamp_str.as_ref(), &[ctx.accounts.game_account.bump]];
+            let seeds = &[&b"GAME"[..], ctx.accounts.game_account.game_maker.as_ref(), &ctx.accounts.game_account.unique_identifier.to_le_bytes(), &[ctx.accounts.game_account.bump]];
             let signer = &[&seeds[..]];
             let cpi_ctx = CpiContext::new_with_signer(token_program.to_account_info(), cpi_accounts, signer);
             token::transfer(cpi_ctx, player.creator_fee_amount)?;
@@ -182,7 +186,7 @@ pub fn settle_game_handler(ctx: Context<SettleGame>) -> Result<()> {
         msg!("Payout Amount: {}", payout_amount);
         
         // Perform the token transfer for the payout amount to the winner's token account
-        let seeds = &[&b"GAME"[..], ctx.accounts.game_account.game_maker.as_ref(), &ctx.accounts.game_account.unix_timestamp_str.as_ref(), &[ctx.accounts.game_account.bump]];
+        let seeds = &[&b"GAME"[..], ctx.accounts.game_account.game_maker.as_ref(), &ctx.accounts.game_account.unique_identifier.to_le_bytes(), &[ctx.accounts.game_account.bump]];
         let signer = &[&seeds[..]];
         let cpi_accounts = SplTransfer {
             from: ctx.accounts.game_account_ta.to_account_info(),
@@ -199,13 +203,13 @@ pub fn settle_game_handler(ctx: Context<SettleGame>) -> Result<()> {
         to: ctx.accounts.gamba_fee_ata.to_account_info(),
         authority: ctx.accounts.game_account.to_account_info(),
     };
-    let seeds = &[&b"GAME"[..], ctx.accounts.game_account.game_maker.as_ref(), &ctx.accounts.game_account.unix_timestamp_str.as_ref(), &[ctx.accounts.game_account.bump]];
+    let seeds = &[&b"GAME"[..], ctx.accounts.game_account.game_maker.as_ref(), &ctx.accounts.game_account.unique_identifier.to_le_bytes(), &[ctx.accounts.game_account.bump]];
     let signer = &[&seeds[..]];
     let cpi_ctx = CpiContext::new_with_signer(token_program.to_account_info(), cpi_accounts, signer);
     token::transfer(cpi_ctx, total_gamba_fee)?;
 
     // After settling the game, close the game_account_ta and send the rent to the game_maker
-    let seeds = &[&b"GAME"[..], ctx.accounts.game_account.game_maker.as_ref(), &ctx.accounts.game_account.unix_timestamp_str.as_ref(), &[ctx.accounts.game_account.bump]];
+    let seeds = &[&b"GAME"[..], ctx.accounts.game_account.game_maker.as_ref(), &ctx.accounts.game_account.unique_identifier.to_le_bytes(), &[ctx.accounts.game_account.bump]];
     let signer_seeds = &[&seeds[..]];
 
     // Close the token account and send the remaining SOL to the game_maker

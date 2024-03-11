@@ -24,9 +24,10 @@ mod multiplayer {
 
     pub fn create_game(
         ctx: Context<CreateGame>,
-        max_players: u32,
+        max_players: u8,
         winners: u8,
-        unix_timestamp: String,
+        duration_seconds: i64,
+        unique_identifier: u32,
         wager_type: WagerType,
         wager: u64,
     ) -> Result<()> {
@@ -34,7 +35,8 @@ mod multiplayer {
             ctx,
             max_players,
             winners,
-            unix_timestamp,
+            duration_seconds,
+            unique_identifier,
             wager_type,
             wager,
         )
