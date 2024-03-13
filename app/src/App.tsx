@@ -12,6 +12,11 @@ const programID = new PublicKey(idl.metadata.address);
 const network = "https://worried-chiquia-fast-devnet.helius-rpc.com/";
 const opts = { preflightCommitment: "processed" };
 
+const WagerType = {
+  SameWager: 0, 
+  CustomWager: 1, 
+};
+
 // Utility functions
 const formatPublicKey = (publicKey) => publicKey.toString();
 const formatBN = (bn) => bn.toString();
@@ -23,12 +28,19 @@ const parseGameState = (stateObject) => {
   }
   return "Unknown State";
 };
+const parseWagerType = (wagerTypeObject) => {
+  const wagerTypeKeys = Object.keys(wagerTypeObject);
+  return wagerTypeKeys.length > 0 ? wagerTypeKeys[0] : "Unknown";
+};
+
 
 const App = () => {
   const wallet = useWallet();
   const [games, setGames] = useState([]);
   const [maxPlayers, setMaxPlayers] = useState(2); // Default to 2 players
   const [tokenMint, setTokenMint] = useState(''); 
+  const [currentBlockchainTime, setCurrentBlockchainTime] = useState(null);
+
 
   useEffect(() => {
     if (wallet.connected) {
@@ -44,59 +56,75 @@ const App = () => {
 
   const fetchGames = async () => {
     try {
-      const provider = getProvider();
+      const connection = new Connection(network, opts.preflightCommitment);
+      const provider = new AnchorProvider(connection, wallet, opts.preflightCommitment);
       const program = new Program(idl, programID, provider);
+  
+      // Fetch all game accounts
       const gameAccounts = await program.account.game.all();
-      console.log("Fetched Games: ", gameAccounts);
+      
+      // Fetch and set the current blockchain timestamp for displaying how long til games expire
+      const slot = await connection.getSlot();
+      const currentTimestamp = await connection.getBlockTime(slot);
+      if (!currentTimestamp) throw new Error('Failed to get current blockchain time');
+      setCurrentBlockchainTime(currentTimestamp);
+  
       setGames(gameAccounts);
     } catch (error) {
-      console.error("Error fetching game accounts:", error);
+      console.error("Error fetching game accounts or blockchain timestamp:", error);
     }
   };
+  
 
   const createGame = async () => {
     try {
-      const maxPlayersInt = parseInt(maxPlayers, 10); // Ensure maxPlayers is an integer
-      if (isNaN(maxPlayersInt) || maxPlayersInt <= 0) {
-        alert("Please enter a valid number for max players.");
-        return;
-      }
+      const maxPlayersInt = maxPlayers
+      const winnersInt = 1;
+      const durationSecondsInt = 60;
+      const uniqueIdentifierInt = 123457;
+      const wagerInt = 10_000; 
+     
 
       const mintPublicKey = new PublicKey(tokenMint);
-
       const provider = getProvider();
       const program = new Program(idl, programID, provider);
-
       const gameMaker = provider.wallet.publicKey;
 
-      const unixTimestamp = Math.floor(Date.now() / 1000).toString();
-      
       // Generate the game_account PDA with the corrected seeds
       const [gameAccountPDA, gameAccountBump] = PublicKey.findProgramAddressSync(
         [
-        Buffer.from("GAME"),
-        gameMaker.toBuffer(),
-        Buffer.from(unixTimestamp)
+          Buffer.from("GAME"),
+          gameMaker.toBuffer(),
+          Buffer.from(new Uint32Array([uniqueIdentifierInt]).buffer)
         ],
         program.programId
       );
 
-      // Generate the game_account_ta_account PDA
-      const [gameAccountTaAccountPDA, gameAccountTaAccountBump] = PublicKey.findProgramAddressSync(
-        [gameAccountPDA.toBuffer()],
+      const [gameAccountTokenAccount, gameAccountTokenAccountBump] = PublicKey.findProgramAddressSync(
+        [
+          gameAccountPDA.toBuffer(),
+        ],
         program.programId
       );
 
+      // if wager type is 0 then its same wager, if its 1 then its custom wager
+      const wager_type = new BN(0);
       // Prepare instruction using the program method
-      const instruction = await program.methods.createGame(new BN(maxPlayers), unixTimestamp)
-        .accounts({
-          gameAccount: gameAccountPDA,
-          mint: mintPublicKey,
-          gameAccountTaAccount: gameAccountTaAccountPDA,
-          gameMaker: provider.wallet.publicKey,
-          systemProgram: SystemProgram.programId,
-          tokenProgram: TOKEN_PROGRAM_ID, 
-        }).instruction();
+      const instruction = await program.methods.createGame(
+        new BN(maxPlayersInt),
+        new BN(winnersInt),
+        new BN(durationSecondsInt),
+        new BN(uniqueIdentifierInt),
+        wager_type,
+        new BN(wagerInt)
+      ).accounts({
+        gameAccount: gameAccountPDA,
+        mint: mintPublicKey,
+        gameAccountTaAccount: gameAccountTokenAccount,
+        gameMaker: gameMaker,
+        systemProgram: SystemProgram.programId,
+        tokenProgram: TOKEN_PROGRAM_ID,
+      }).instruction();
 
       // Fetch the latest blockhash
       const block = await provider.connection.getLatestBlockhash('finalized');
@@ -113,7 +141,7 @@ const App = () => {
 
       // Sign and send the transaction
       const signedTx = await provider.wallet.signTransaction(transaction);
-      const txId = await provider.connection.sendTransaction(signedTx, {skipPreflight: false, preflightCommitment: "confirmed"});
+      const txId = await provider.connection.sendTransaction(signedTx, {skipPreflight: true, preflightCommitment: "confirmed"});
 
       console.log("Transaction ID:", txId);
     } catch (error) {
@@ -290,7 +318,6 @@ const App = () => {
     }
   };
   
-
   return (
     <div>
       <WalletModalButton />
@@ -310,47 +337,57 @@ const App = () => {
           onChange={(e) => setTokenMint(e.target.value)}
           placeholder="Token Mint"
         />
-      <button onClick={createGame}>Create Game</button>
+        <button onClick={createGame}>Create Game</button>
       </div>
       <div className="button-row">
         <button onClick={fetchGames}>Refresh Games</button>
       </div>
       <div>
-        {games.map((game, index) => (
+      {games.map((game, index) => {
+        const expirationTimestamp = new BN(game.account.gameExpirationTimestamp).toNumber();
+        const timeUntilExpiration = currentBlockchainTime ? Math.max(0, expirationTimestamp - currentBlockchainTime) : null;
+  
+        return (
           <div key={index} className="gameCard">
             <div>Game Account Public Key: {formatPublicKey(game.publicKey)}</div>
-            <div>Game ID: {formatBN(game.account.gameId)}</div>
-            <div>State: {parseGameState(game.account.state)}</div>
             <div>Game Maker: {formatPublicKey(game.account.gameMaker)}</div>
+            <div>State: {parseGameState(game.account.state)}</div>
             <div>Mint: {formatPublicKey(game.account.mint)}</div>
-            <div>Max Players: {game.account.maxPlayers}</div>
+            <div>Max Players: {game.account.maxPlayers.toString()}</div>
+            <div>Winners: {game.account.winners.toString()}</div>
+            <div>Game ID: {game.account.gameId.toString()}</div>
+            <div>Game Expiration Timestamp: {game.account.gameExpirationTimestamp.toString()}</div>
+            <div>Time Until Expiration: {timeUntilExpiration !== null ? `${timeUntilExpiration} seconds` : 'Loading...'}</div>
+            <div>Unique Identifier: {game.account.uniqueIdentifier.toString()}</div>
+            <div>Wager Type: {parseWagerType(game.account.wagerType)}</div>
+            <div>Wager: {game.account.wager.toString()}</div>
             <div>
-              Players:
-              {game.account.players.map((player, playerIndex) => (
-                <div key={playerIndex} className="playerInfo">
-                  <div>Creator ATA: {formatPublicKey(player.creatorAddressAta)}</div>
-                  <div>User ATA: {formatPublicKey(player.userAta)}</div>
-                  <div>Creator Fee: {player.creatorFeeAmount.toString()}</div>
-                  <div>Gamba Fee: {player.gambaFeeAmount.toString()}</div>
-                  <div>Wager: {player.wager.toString()}</div>
-                </div>
-              ))}
-            </div>
+                Players:
+                {game.account.players.map((player, playerIndex) => (
+                  <div key={playerIndex} className="playerInfo">
+                    <div>Creator ATA: {formatPublicKey(player.creatorAddressAta)}</div>
+                    <div>User ATA: {formatPublicKey(player.userAta)}</div>
+                    <div>Creator Fee: {player.creatorFeeAmount.toString()}</div>
+                    <div>Gamba Fee: {player.gambaFeeAmount.toString()}</div>
+                    <div>Wager: {player.wager.toString()}</div>
+                  </div>
+                ))}
+              </div>
             <div className="buttonContainer">
               <div className="joinLeaveButtons">
-                <button onClick={() => joinGame(game, new PublicKey("5r5Sos7CQUNdN9EpwwSu1ujGVnsChv24TmrtjTWkAdNj"), 100, 5000)}>Join Game</button>
+                <button onClick={() => joinGame(game, new PublicKey("5r5Sos7CQUNdN9EpwwSu1ujGVnsChv24TmrtjTWkAdNj"), 100, 5000000)}>Join Game</button>
                 <button onClick={() => leaveGame(game)}>Leave Game</button>
               </div>
-              {parseGameState(game.account.state) === 'Playing' && (
+              {(parseGameState(game.account.state) === 'Playing' || timeUntilExpiration === 0) && (
                 <button className="settleButton" onClick={() => settleGame(game)}>Settle Game</button>
-              )}
+               )}
             </div>
           </div>
-        ))}
+        );
+      })}
       </div>
     </div>
-  );  
-};
-
+  );
+}
 
 export default App;

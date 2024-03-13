@@ -39,11 +39,27 @@
       "args": [
         {
           "name": "maxPlayers",
+          "type": "u8"
+        },
+        {
+          "name": "winners",
+          "type": "u8"
+        },
+        {
+          "name": "durationSeconds",
+          "type": "i64"
+        },
+        {
+          "name": "uniqueIdentifier",
           "type": "u32"
         },
         {
-          "name": "unixTimestamp",
-          "type": "string"
+          "name": "wagerType",
+          "type": "u8"
+        },
+        {
+          "name": "wager",
+          "type": "u64"
         }
       ]
     },
@@ -280,7 +296,7 @@
           },
           {
             "name": "maxPlayers",
-            "type": "u32"
+            "type": "u8"
           },
           {
             "name": "players",
@@ -291,12 +307,30 @@
             }
           },
           {
+            "name": "winners",
+            "type": "u8"
+          },
+          {
             "name": "gameId",
             "type": "u64"
           },
           {
-            "name": "unixTimestampStr",
-            "type": "string"
+            "name": "gameExpirationTimestamp",
+            "type": "i64"
+          },
+          {
+            "name": "uniqueIdentifier",
+            "type": "u32"
+          },
+          {
+            "name": "wagerType",
+            "type": {
+              "defined": "WagerType"
+            }
+          },
+          {
+            "name": "wager",
+            "type": "u64"
           },
           {
             "name": "bump",
@@ -348,6 +382,20 @@
           }
         ]
       }
+    },
+    {
+      "name": "WagerType",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "SameWager"
+          },
+          {
+            "name": "CustomWager"
+          }
+        ]
+      }
     }
   ],
   "errors": [
@@ -370,9 +418,14 @@
       "code": 6003,
       "name": "InvalidGameAccount",
       "msg": "Invalid game account"
+    },
+    {
+      "code": 6004,
+      "name": "CannotSettleYet",
+      "msg": "Cannot settle yet"
     }
   ],
   "metadata": {
-    "address": "6hGVGMWPQirQGq4j7KMo2r1t9YN9N7RjbRDkZ1Xu3a28"
+    "address": "2bH8ug93GjpG7SpLmb4u1Pb67CHtWUuxBbauEsp4gWkJ"
   }
 }
