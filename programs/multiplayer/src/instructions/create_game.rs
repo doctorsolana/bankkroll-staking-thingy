@@ -23,10 +23,14 @@ pub struct CreateGame<'info> {
     pub token_program: Program<'info, Token>,
 }
 
-pub fn create_game_handler(ctx: Context<CreateGame>, max_players: u8, winners: u8, duration_seconds: i64, unique_identifier: u32, wager_type: WagerType, wager: u64) -> Result<()> {
+pub fn create_game_handler(ctx: Context<CreateGame>, max_players: u8, winners: u8, duration_seconds: i64, unique_identifier: u32, wager_type: u8, wager: u64) -> Result<()> {
     let clock = Clock::get()?; 
     let current_timestamp = clock.unix_timestamp;
     let game_account = &mut ctx.accounts.game_account;
+
+    // if u8 is more than 0 then it is a custom wager
+    let wager_type = if wager_type > 0 { WagerType::CustomWager } else { WagerType::SameWager };
+
     game_account.game_maker = *ctx.accounts.game_maker.key;
     game_account.state = GameState::Waiting;
     game_account.mint = *ctx.accounts.mint.to_account_info().key;
@@ -40,5 +44,9 @@ pub fn create_game_handler(ctx: Context<CreateGame>, max_players: u8, winners: u
     game_account.wager = wager;
     game_account.bump = *ctx.bumps.get("game_account").unwrap(); // anchor 0.28
     // game_account.bump = ctx.bumps.game_account; // anchor 0.29
+
+    msg!("wager_amount: {}", wager);
     Ok(())
 }
+
+

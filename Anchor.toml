@@ -2,9 +2,9 @@
 seeds = false
 skip-lint = false
 [programs.localnet]
-multiplayer = "6hGVGMWPQirQGq4j7KMo2r1t9YN9N7RjbRDkZ1Xu3a28"
+multiplayer = "2bH8ug93GjpG7SpLmb4u1Pb67CHtWUuxBbauEsp4gWkJ"
 [programs.devnet]
-multiplayer = "6hGVGMWPQirQGq4j7KMo2r1t9YN9N7RjbRDkZ1Xu3a28"
+multiplayer = "2bH8ug93GjpG7SpLmb4u1Pb67CHtWUuxBbauEsp4gWkJ"
 
 [registry]
 url = "https://api.apr.dev"

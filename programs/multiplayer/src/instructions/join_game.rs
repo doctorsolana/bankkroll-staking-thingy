@@ -30,7 +30,7 @@ pub struct JoinGame<'info> {
     pub player_ata: Account<'info, TokenAccount>,
 
     //creator address
-    /// CHECK: THIS IS FINE
+    /// CHECK: THIS IS FINE I THINK!!!
     pub creator_address: UncheckedAccount<'info>,
 
     //creator associated token account
@@ -53,17 +53,17 @@ pub fn join_game_handler(
 ) -> Result<()> {
     let game_account = &mut ctx.accounts.game_account;
 
-    // calcualte creator fee amount from creator fee bip
-    let creator_fee_amount = (wager * creator_fee as u64) / 10000;
-
-    //gamba placeholder fee at 1%
-    let gamba_fee_amount = (wager * 100) / 10000;
-
     // If game is in SameWager state then set final_wager to the game_account's wager
     let mut final_wager = wager;
     if game_account.wager_type == WagerType::SameWager {
         final_wager = game_account.wager;
     }
+
+    // calcualte creator fee amount from creator fee bip
+    let creator_fee_amount = (final_wager * creator_fee as u64) / 10000;
+
+    //gamba placeholder fee at 1%
+    let gamba_fee_amount = (final_wager * 100) / 10000;
 
     let player = Player {
         creator_address_ata: *ctx.accounts.creator_ata.to_account_info().key,
@@ -96,7 +96,7 @@ pub fn join_game_handler(
       };
       let cpi_program = ctx.accounts.token_program.to_account_info();
       let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
-      token::transfer(cpi_ctx, wager + creator_fee_amount + gamba_fee_amount)?;
+      token::transfer(cpi_ctx, final_wager + creator_fee_amount + gamba_fee_amount)?;
 
     //if max players is reached, start the game
     if game_account.players.len() == game_account.max_players as usize {

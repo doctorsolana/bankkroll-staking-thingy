@@ -4,7 +4,7 @@ use anchor_lang::prelude::*;
 // - Add 2 different game modes, custom wager and all same wager,
 // - Add 1 winner or multiple winners
 
-declare_id!("6hGVGMWPQirQGq4j7KMo2r1t9YN9N7RjbRDkZ1Xu3a28");
+declare_id!("2bH8ug93GjpG7SpLmb4u1Pb67CHtWUuxBbauEsp4gWkJ");
 
 pub mod error;
 pub use error::*;
@@ -28,7 +28,7 @@ mod multiplayer {
         winners: u8,
         duration_seconds: i64,
         unique_identifier: u32,
-        wager_type: WagerType,
+        wager_type: u8, 
         wager: u64,
     ) -> Result<()> {
         instructions::create_game_handler(
