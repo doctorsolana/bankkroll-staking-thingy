@@ -51,6 +51,42 @@ pub struct SettleGame<'info> {
     #[account(mut, address = game_account.players[3].creator_address_ata)]
     pub creator_4_ata: Option<Box<Account<'info, TokenAccount>>>,
 
+    // Player 5
+    #[account(mut, address = game_account.players[4].user_ata)]
+    pub player_5_ata: Option<Box<Account<'info, TokenAccount>>>,
+    #[account(mut, address = game_account.players[4].creator_address_ata)]
+    pub creator_5_ata: Option<Box<Account<'info, TokenAccount>>>,
+
+    // Player 6
+    #[account(mut, address = game_account.players[5].user_ata)]
+    pub player_6_ata: Option<Box<Account<'info, TokenAccount>>>,
+    #[account(mut, address = game_account.players[5].creator_address_ata)]
+    pub creator_6_ata: Option<Box<Account<'info, TokenAccount>>>,
+
+    // Player 7
+    #[account(mut, address = game_account.players[6].user_ata)]
+    pub player_7_ata: Option<Box<Account<'info, TokenAccount>>>,
+    #[account(mut, address = game_account.players[6].creator_address_ata)]
+    pub creator_7_ata: Option<Box<Account<'info, TokenAccount>>>,
+
+    // Player 8
+    #[account(mut, address = game_account.players[7].user_ata)]
+    pub player_8_ata: Option<Box<Account<'info, TokenAccount>>>,
+    #[account(mut, address = game_account.players[7].creator_address_ata)]
+    pub creator_8_ata: Option<Box<Account<'info, TokenAccount>>>,
+
+    // Player 9
+    #[account(mut, address = game_account.players[8].user_ata)]
+    pub player_9_ata: Option<Box<Account<'info, TokenAccount>>>,
+    #[account(mut, address = game_account.players[8].creator_address_ata)]
+    pub creator_9_ata: Option<Box<Account<'info, TokenAccount>>>,
+
+    // Player 10
+    #[account(mut, address = game_account.players[9].user_ata)]
+    pub player_10_ata: Option<Box<Account<'info, TokenAccount>>>,
+    #[account(mut, address = game_account.players[9].creator_address_ata)]
+    pub creator_10_ata: Option<Box<Account<'info, TokenAccount>>>,
+
     pub system_program: Program<'info, System>,
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub token_program: Program<'info, Token>,
@@ -120,6 +156,12 @@ pub fn settle_game_handler(ctx: Context<SettleGame>) -> Result<()> {
         &ctx.accounts.player_2_ata,
         &ctx.accounts.player_3_ata,
         &ctx.accounts.player_4_ata,
+        &ctx.accounts.player_5_ata,
+        &ctx.accounts.player_6_ata,
+        &ctx.accounts.player_7_ata,
+        &ctx.accounts.player_8_ata,
+        &ctx.accounts.player_9_ata,
+        &ctx.accounts.player_10_ata,
     ].into_iter().filter_map(|ata| ata.as_ref()).collect();
 
     let filtered_creator_atas: Vec<&Box<Account<TokenAccount>>> = vec![
@@ -127,6 +169,12 @@ pub fn settle_game_handler(ctx: Context<SettleGame>) -> Result<()> {
         &ctx.accounts.creator_2_ata,
         &ctx.accounts.creator_3_ata,
         &ctx.accounts.creator_4_ata,
+        &ctx.accounts.creator_5_ata,
+        &ctx.accounts.creator_6_ata,
+        &ctx.accounts.creator_7_ata,
+        &ctx.accounts.creator_8_ata,
+        &ctx.accounts.creator_9_ata,
+        &ctx.accounts.creator_10_ata,
     ].into_iter().filter_map(|ata| ata.as_ref()).collect();
 
     msg!("Filtered Player ATAs: {:?}", filtered_player_atas.len());

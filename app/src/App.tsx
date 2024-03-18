@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { WalletModalButton } from '@solana/wallet-adapter-react-ui';
-import { PublicKey, Connection, SystemProgram, TransactionMessage, VersionedTransaction } from '@solana/web3.js';
+import { PublicKey, Connection, SystemProgram, TransactionMessage, VersionedTransaction, ComputeBudgetProgram } from '@solana/web3.js';
 import { Program, AnchorProvider, BN} from '@coral-xyz/anchor';
 import { TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync} from '@solana/spl-token';
 import idl from './idl.json';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { Buffer } from 'buffer';
 import './styles.css'
+import  { sendTransaction2, formatPublicKey, parseGameState, parseWagerType }from './utils.ts'
 
 const programID = new PublicKey(idl.metadata.address);
 const network = "https://worried-chiquia-fast-devnet.helius-rpc.com/";
@@ -18,20 +19,7 @@ const WagerType = {
 };
 
 // Utility functions
-const formatPublicKey = (publicKey) => publicKey.toString();
-const formatBN = (bn) => bn.toString();
-const parseGameState = (stateObject) => {
-  const stateKeys = Object.keys(stateObject);
-  if (stateKeys.length > 0) {
-    const currentState = stateKeys[0];
-    return currentState.charAt(0).toUpperCase() + currentState.slice(1);
-  }
-  return "Unknown State";
-};
-const parseWagerType = (wagerTypeObject) => {
-  const wagerTypeKeys = Object.keys(wagerTypeObject);
-  return wagerTypeKeys.length > 0 ? wagerTypeKeys[0] : "Unknown";
-};
+
 
 
 const App = () => {
@@ -40,6 +28,10 @@ const App = () => {
   const [maxPlayers, setMaxPlayers] = useState(2); // Default to 2 players
   const [tokenMint, setTokenMint] = useState(''); 
   const [currentBlockchainTime, setCurrentBlockchainTime] = useState(null);
+  const [gameDuration, setGameDuration] = useState(''); // Game duration in seconds
+  const [wagerAmount, setWagerAmount] = useState(''); // Wager amount
+  const [winners, setWinners] = useState(1); // Default to 1 winner
+
 
 
   useEffect(() => {
@@ -78,11 +70,11 @@ const App = () => {
 
   const createGame = async () => {
     try {
-      const maxPlayersInt = maxPlayers
-      const winnersInt = 1;
-      const durationSecondsInt = 60;
-      const uniqueIdentifierInt = 123457;
-      const wagerInt = 10_000; 
+      const maxPlayersInt = maxPlayers;
+      const winnersInt = winners // Assuming winners are predefined or calculated elsewhere
+      const durationSecondsInt = parseInt(gameDuration);
+      const uniqueIdentifierInt = Math.floor(Math.random() * 10000) + 1; // create random number for unique identifier between 1 and 10000
+      const wagerInt = parseInt(wagerAmount);
      
 
       const mintPublicKey = new PublicKey(tokenMint);
@@ -126,22 +118,7 @@ const App = () => {
         tokenProgram: TOKEN_PROGRAM_ID,
       }).instruction();
 
-      // Fetch the latest blockhash
-      const block = await provider.connection.getLatestBlockhash('finalized');
-
-      // Create the message for a versioned transaction
-      const messageV0 = new TransactionMessage({
-        payerKey: provider.wallet.publicKey,
-        recentBlockhash: block.blockhash,
-        instructions: [instruction],
-      }).compileToV0Message();
-
-      // Create the versioned transaction
-      const transaction = new VersionedTransaction(messageV0);
-
-      // Sign and send the transaction
-      const signedTx = await provider.wallet.signTransaction(transaction);
-      const txId = await provider.connection.sendTransaction(signedTx, {skipPreflight: true, preflightCommitment: "confirmed"});
+      const txId = await sendTransaction2(provider, instruction, undefined, 5000);
 
       console.log("Transaction ID:", txId);
     } catch (error) {
@@ -192,17 +169,7 @@ const App = () => {
           tokenProgram: TOKEN_PROGRAM_ID,
         }).instruction();
   
-      const block = await provider.connection.getLatestBlockhash('finalized');
-  
-      const messageV0 = new TransactionMessage({
-        payerKey: playerPubKey,
-        recentBlockhash: block.blockhash,
-        instructions: [instruction],
-      }).compileToV0Message();
-  
-      const transaction = new VersionedTransaction(messageV0);
-      const signedTx = await provider.wallet.signTransaction(transaction);
-      const txId = await provider.connection.sendTransaction(signedTx, {skipPreflight: false, preflightCommitment: "confirmed"});
+      const txId = await sendTransaction2(provider, instruction);
       console.log("Transaction ID:", txId);
     } catch (error) {
       console.error("Error joining game:", error);
@@ -242,17 +209,7 @@ const App = () => {
           tokenProgram: TOKEN_PROGRAM_ID,
         }).instruction();
   
-      const block = await provider.connection.getLatestBlockhash('finalized');
-  
-      const messageV0 = new TransactionMessage({
-        payerKey: playerPubKey,
-        recentBlockhash: block.blockhash,
-        instructions: [instruction],
-      }).compileToV0Message();
-  
-      const transaction = new VersionedTransaction(messageV0);
-      const signedTx = await provider.wallet.signTransaction(transaction);
-      const txId = await provider.connection.sendTransaction(signedTx, {skipPreflight: false, preflightCommitment: "confirmed"});
+      const txId = await sendTransaction2(provider, instruction);
       console.log("Transaction ID:", txId);
     } catch (error) {
       console.error("Error Leaving game:", error);
@@ -277,7 +234,7 @@ const App = () => {
         program.programId
       );
   
-      const settleInstruction = await program.methods.settleGame()
+      const instruction = await program.methods.settleGame()
         .accounts({
           rng: provider.wallet.publicKey, // just the user for now
           gameMaker: game.account.gameMaker,
@@ -294,29 +251,44 @@ const App = () => {
           creator3Ata: game.account.players[2] ? game.account.players[2].creatorAddressAta : null,
           player4Ata: game.account.players[3] ? game.account.players[3].userAta : null,
           creator4Ata: game.account.players[3] ? game.account.players[3].creatorAddressAta : null,
+          player5Ata: game.account.players[4] ? game.account.players[4].userAta : null,
+          creator5Ata: game.account.players[4] ? game.account.players[4].creatorAddressAta : null,
+          player6Ata: game.account.players[5] ? game.account.players[5].userAta : null,
+          creator6Ata: game.account.players[5] ? game.account.players[5].creatorAddressAta : null,
+          player7Ata: game.account.players[6] ? game.account.players[6].userAta : null,
+          creator7Ata: game.account.players[6] ? game.account.players[6].creatorAddressAta : null,
+          player8Ata: game.account.players[7] ? game.account.players[7].userAta : null,
+          creator8Ata: game.account.players[7] ? game.account.players[7].creatorAddressAta : null,
+          player9Ata: game.account.players[8] ? game.account.players[8].userAta : null,
+          creator9Ata: game.account.players[8] ? game.account.players[8].creatorAddressAta : null,
+          player10Ata: game.account.players[9] ? game.account.players[9].userAta : null,
+          creator10Ata: game.account.players[9] ? game.account.players[9].creatorAddressAta : null,
           // Continue as necessary for all players
           systemProgram: SystemProgram.programId,
           associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
           tokenProgram: TOKEN_PROGRAM_ID,
         }).instruction();
   
-      const block = await provider.connection.getLatestBlockhash('finalized');
-  
-      const messageV0 = new TransactionMessage({
-        payerKey: provider.wallet.publicKey,
-        recentBlockhash: block.blockhash,
-        instructions: [settleInstruction],
-      }).compileToV0Message();
-  
-      const transaction = new VersionedTransaction(messageV0);
-      const signedTx = await provider.wallet.signTransaction(transaction);
-      const txId = await provider.connection.sendTransaction(signedTx, { skipPreflight: true, preflightCommitment: "confirmed" });
+      const txId = await sendTransaction2(provider, instruction);
   
       console.log("Settle Game Transaction ID:", txId);
     } catch (error) {
       console.error("Error settling game:", error);
     }
   };
+
+  useEffect(() => {
+    const fetchInterval = 2000; // Fetch every n milliseconds 
+  
+    const intervalId = setInterval(() => {
+      if (wallet.connected) {
+        fetchGames();
+      }
+    }, fetchInterval);
+  
+    return () => clearInterval(intervalId);
+  }, [wallet.connected]); // Re-run effect if wallet.connected changes
+  
   
   return (
     <div>
@@ -337,6 +309,29 @@ const App = () => {
           onChange={(e) => setTokenMint(e.target.value)}
           placeholder="Token Mint"
         />
+        <div>
+        <input
+          className="input-field"
+          type="number"
+          value={gameDuration}
+          onChange={(e) => setGameDuration(e.target.value)}
+          placeholder="Game Duration (seconds)"
+        />
+        <input
+          className="input-field"
+          type="number"
+          value={wagerAmount}
+          onChange={(e) => setWagerAmount(e.target.value)}
+          placeholder="Wager Amount"
+        />
+        <input
+          className="input-field"
+          type="number"
+          value={winners}
+          onChange={(e) => setWinners(e.target.value)}
+          placeholder="Winners"
+        />
+      </div>
         <button onClick={createGame}>Create Game</button>
       </div>
       <div className="button-row">
