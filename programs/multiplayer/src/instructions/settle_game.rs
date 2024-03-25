@@ -4,6 +4,7 @@ use anchor_spl::{
     token::{CloseAccount, Mint, Token, TokenAccount, Transfer as SplTransfer}
 };
 use anchor_spl::token;
+use std::collections::HashMap;
 
 #[derive(Accounts)]
 pub struct SettleGame<'info> {
@@ -132,6 +133,43 @@ pub fn pseudo_shuffle(vec: &mut [usize], seed: u64) {
     }
 }
 
+// Modified function to perform weighted selection
+pub fn weighted_selection(players: &[Player], total_wager: u64, num_winners: usize, seed: u64) -> Vec<usize> {
+    let mut cumulative_weights = Vec::new();
+    let mut total_cumulative_weight = 0.0;
+
+    // Calculate cumulative weights for each player based on their wager
+    for player in players.iter() {
+        let player_weight = player.wager as f64 / total_wager as f64;
+        total_cumulative_weight += player_weight;
+        cumulative_weights.push(total_cumulative_weight);
+    }
+
+    // Prepare to select winners
+    let mut winners = Vec::new();
+    let mut rng_seed = seed;
+    let mut selected_indices = HashMap::new();
+
+    while winners.len() < num_winners {
+        // Generate a pseudo-random number using a simple RNG approach based on the seed
+        rng_seed = rng_seed.wrapping_mul(0x5DEECE66D).wrapping_add(0xB);
+        let normalized_random = (rng_seed % 1_000_000) as f64 / 1_000_000.0;
+
+        // Determine the winner based on cumulative weights
+        for (index, &cumulative_weight) in cumulative_weights.iter().enumerate() {
+            if normalized_random <= cumulative_weight && !selected_indices.contains_key(&index) {
+                winners.push(index);
+                selected_indices.insert(index, true);
+                break;
+            }
+        }
+    }
+    msg!("Winners: {:?}", winners);
+    msg!("weights: {:?}", cumulative_weights);
+
+    winners
+}
+
 pub fn settle_game_handler(ctx: Context<SettleGame>) -> Result<()> {
 
     let clock = Clock::get()?; // Get the current on-chain time
@@ -205,18 +243,29 @@ pub fn settle_game_handler(ctx: Context<SettleGame>) -> Result<()> {
     //log total wager amount
     msg!("Total Wager Amount: {}", total_wager);
 
-    //check that winners are not more than players otherwise set number of winners to players
+    //check that desired winners are not more than players otherwise set number of winners to players
     let num_players = filtered_player_atas.len();
     let intended_winners = ctx.accounts.game_account.winners as usize;
     let effective_num_winners = if intended_winners > num_players { num_players } else { intended_winners };
 
-    // Shuffle player indices based on the timestamp for pseudorandomness
-    let timestamp = Clock::get()?.unix_timestamp as u64;
-    let mut player_indices: Vec<usize> = (0..num_players).collect();
-    pseudo_shuffle(&mut player_indices, timestamp); // fake randomness
+    // // Shuffle player indices based on the timestamp for pseudorandomness
+    // let timestamp = Clock::get()?.unix_timestamp as u64;
+    // let mut player_indices: Vec<usize> = (0..num_players).collect();
+    // pseudo_shuffle(&mut player_indices, timestamp); // fake randomness
 
-    // Select the top N indices as winners, where N is the effective number of winners
-    let winner_indices: Vec<usize> = player_indices.into_iter().take(effective_num_winners).collect();
+    // Use the current timestamp as a seed for the weighted selection
+    let timestamp = Clock::get()?.unix_timestamp as u64;
+
+    // Perform the weighted selection to determine winner indices
+    let winner_indices = weighted_selection(
+        &ctx.accounts.game_account.players,
+        total_wager,
+        effective_num_winners,
+        timestamp,
+    );
+
+    // // Select the top N indices as winners, where N is the effective number of winners
+    // let winner_indices: Vec<usize> = player_indices.into_iter().take(effective_num_winners).collect();
 
     // Calculate payouts
     let payouts = calculate_payouts(total_wager, effective_num_winners);
