@@ -2,6 +2,15 @@ use crate::*;
 
 
 #[account]
+pub struct GambaState {
+    pub rng: Pubkey,
+    pub authority: Pubkey,
+    pub gamba_fee_bps: u32,
+    pub initialized: bool,
+    pub bump: u8,
+}
+
+#[account]
 pub struct Game {
     pub game_maker: Pubkey,
     pub state: GameState,

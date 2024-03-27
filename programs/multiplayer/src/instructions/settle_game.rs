@@ -8,8 +8,11 @@ use std::collections::HashMap;
 
 #[derive(Accounts)]
 pub struct SettleGame<'info> {
-    #[account(mut)]
+    #[account(mut, address = gamba_state.rng)]
     pub rng: Signer<'info>,
+
+    #[account(mut, seeds = [b"GAMBA_STATE".as_ref()], bump)]
+    pub gamba_state: Account<'info, GambaState>,
 
     #[account(mut, address = game_account.game_maker)]
     /// CHECK: THIS IS FINE

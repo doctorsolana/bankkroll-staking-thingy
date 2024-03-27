@@ -72,6 +72,11 @@
           "isSigner": false
         },
         {
+          "name": "gambaState",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
           "name": "gameAccountTa",
           "isMut": true,
           "isSigner": false
@@ -181,6 +186,11 @@
           "name": "rng",
           "isMut": true,
           "isSigner": true
+        },
+        {
+          "name": "gambaState",
+          "isMut": true,
+          "isSigner": false
         },
         {
           "name": "gameMaker",
@@ -344,9 +354,67 @@
         }
       ],
       "args": []
+    },
+    {
+      "name": "gambaConfig",
+      "accounts": [
+        {
+          "name": "gambaState",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "authority",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "gambaFee",
+          "type": "u32"
+        },
+        {
+          "name": "rng",
+          "type": "publicKey"
+        }
+      ]
     }
   ],
   "accounts": [
+    {
+      "name": "GambaState",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "rng",
+            "type": "publicKey"
+          },
+          {
+            "name": "authority",
+            "type": "publicKey"
+          },
+          {
+            "name": "gambaFeeBps",
+            "type": "u32"
+          },
+          {
+            "name": "initialized",
+            "type": "bool"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
     {
       "name": "Game",
       "type": {
@@ -495,6 +563,11 @@
       "code": 6004,
       "name": "CannotSettleYet",
       "msg": "Cannot settle yet"
+    },
+    {
+      "code": 6005,
+      "name": "AuthorityMismatch",
+      "msg": "Authority mismatch"
     }
   ],
   "metadata": {

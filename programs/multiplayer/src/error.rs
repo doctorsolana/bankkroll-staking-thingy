@@ -11,6 +11,8 @@ pub enum GambaError {
     #[msg("Invalid game account")]
     InvalidGameAccount,
     #[msg("Cannot settle yet")]
-    CannotSettleYet
+    CannotSettleYet,
+    #[msg("Authority mismatch")]
+    AuthorityMismatch,
 
 }

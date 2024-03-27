@@ -53,4 +53,8 @@ mod multiplayer {
     pub fn settle_game(ctx: Context<SettleGame>) -> Result<()> {
         instructions::settle_game_handler(ctx)
     }
+
+    pub fn gamba_config(ctx: Context<GambaConfig>, gamba_fee: u32, rng: Pubkey) -> Result<()> {
+        instructions::gamba_config_handler(ctx, gamba_fee, rng)
+    }
 }

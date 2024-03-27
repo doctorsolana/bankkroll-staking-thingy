@@ -5,12 +5,13 @@ use anchor_spl::{
 };
 use anchor_spl::token;
 
-
-
 #[derive(Accounts)]
 pub struct JoinGame<'info> {
     #[account(mut)]
     pub game_account: Account<'info, Game>,
+
+    #[account(mut, seeds = [b"GAMBA_STATE".as_ref()], bump)]
+    pub gamba_state: Account<'info, GambaState>,
 
     //game associated token account
     #[account(mut, seeds = [game_account.key().as_ref()], bump)]
@@ -63,7 +64,7 @@ pub fn join_game_handler(
     let creator_fee_amount = (final_wager * creator_fee as u64) / 10000;
 
     //gamba placeholder fee at 1%
-    let gamba_fee_amount = (final_wager * 100) / 10000;
+    let gamba_fee_amount = (final_wager * ctx.accounts.gamba_state.gamba_fee_bps as u64) / 10000;
 
     let player = Player {
         creator_address_ata: *ctx.accounts.creator_ata.to_account_info().key,

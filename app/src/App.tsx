@@ -1,44 +1,45 @@
-import React, { useState, useEffect } from 'react';
-import { WalletModalButton } from '@solana/wallet-adapter-react-ui';
-import { PublicKey, Connection, SystemProgram, TransactionMessage, VersionedTransaction, ComputeBudgetProgram } from '@solana/web3.js';
-import { Program, AnchorProvider, BN} from '@coral-xyz/anchor';
-import { TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync} from '@solana/spl-token';
-import idl from './idl.json';
-import { useWallet } from '@solana/wallet-adapter-react';
-import { Buffer } from 'buffer';
+import React, { useState, useEffect } from 'react'
+import { WalletModalButton } from '@solana/wallet-adapter-react-ui'
+import { PublicKey, Connection, SystemProgram } from '@solana/web3.js'
+import { Program, AnchorProvider, BN} from '@coral-xyz/anchor'
+import { TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync} from '@solana/spl-token'
+import idl from './idl.json'
+import { useWallet } from '@solana/wallet-adapter-react'
+import { Buffer } from 'buffer'
 import './styles.css'
 import  { sendTransaction2, formatPublicKey, parseGameState, parseWagerType }from './utils.ts'
 
-const programID = new PublicKey(idl.metadata.address);
-const network = "https://worried-chiquia-fast-devnet.helius-rpc.com/";
-const opts = { preflightCommitment: "processed" };
+const programID = new PublicKey(idl.metadata.address)
+const network = "https://worried-chiquia-fast-devnet.helius-rpc.com/"
+const opts = { preflightCommitment: "processed" }
 
 const WagerType = {
-  SameWager: 0, 
-  CustomWager: 1, 
+  SameWager: "SameWager",
+  CustomWager: "CustomWager",
 };
 
-// Utility functions
-
-
-
 const App = () => {
-  const wallet = useWallet();
-  const [games, setGames] = useState([]);
-  const [maxPlayers, setMaxPlayers] = useState(2); // Default to 2 players
-  const [tokenMint, setTokenMint] = useState(''); 
-  const [currentBlockchainTime, setCurrentBlockchainTime] = useState(null);
-  const [gameDuration, setGameDuration] = useState(''); // Game duration in seconds
-  const [wagerAmount, setWagerAmount] = useState(''); // Wager amount
-  const [winners, setWinners] = useState(1); // Default to 1 winner
-
-
+  const wallet = useWallet()
+  const [games, setGames] = useState([])
+  const [maxPlayers, setMaxPlayers] = useState(2) // Default to 2 players
+  const [tokenMint, setTokenMint] = useState('') 
+  const [currentBlockchainTime, setCurrentBlockchainTime] = useState(null)
+  const [gameDuration, setGameDuration] = useState('') // Game duration in seconds
+  const [wagerAmount, setWagerAmount] = useState('') // Wager amount
+  const [winners, setWinners] = useState(1) // Default to 1 winner
+  const [gameType, setGameType] = useState(WagerType.SameWager);
 
   useEffect(() => {
-    if (wallet.connected) {
-      fetchGames();
-    }
-  }, [wallet.connected]);
+    const fetchInterval = 2500; // Fetch every n milliseconds 
+  
+    const intervalId = setInterval(() => {
+      if (wallet.connected) {
+        fetchGames();
+      }
+    }, fetchInterval);
+  
+    return () => clearInterval(intervalId);
+  }, [wallet.connected]); // Re-run effect if wallet.connected changes
 
   const getProvider = () => {
     const connection = new Connection(network, opts.preflightCommitment);
@@ -64,6 +65,41 @@ const App = () => {
       setGames(gameAccounts);
     } catch (error) {
       console.error("Error fetching game accounts or blockchain timestamp:", error);
+    }
+  };
+
+  const gambaConfig = async () => {
+    try {
+
+      const provider = getProvider();
+      const program = new Program(idl, programID, provider);
+    
+      // Generate the gamba_state PDA 
+      const [gambaState, gameAccountBump] = PublicKey.findProgramAddressSync(
+        [
+          Buffer.from("GAMBA_STATE"),
+        ],
+        program.programId
+      );
+
+      const gamba_fee_bps = new BN(100) // 1%
+      const rng_address = new PublicKey("5r5Sos7CQUNdN9EpwwSu1ujGVnsChv24TmrtjTWkAdNj")
+
+      // Prepare instruction using the program method
+      const instruction = await program.methods.gambaConfig(
+        gamba_fee_bps,
+        rng_address
+      ).accounts({
+        gambaState: gambaState,
+        authority: provider.wallet.publicKey,
+        systemProgram: SystemProgram.programId,
+      }).instruction();
+
+      const txId = await sendTransaction2(provider, instruction);
+
+      console.log("Transaction ID:", txId);
+    } catch (error) {
+      console.error("Error creating game:", error);
     }
   };
   
@@ -100,14 +136,15 @@ const App = () => {
       );
 
       // if wager type is 0 then its same wager, if its 1 then its custom wager
-      const wager_type = new BN(0);
+      const gameTypeValue = gameType === WagerType.SameWager ? new BN(0) : new BN(1);
+
       // Prepare instruction using the program method
       const instruction = await program.methods.createGame(
         new BN(maxPlayersInt),
         new BN(winnersInt),
         new BN(durationSecondsInt),
         new BN(uniqueIdentifierInt),
-        wager_type,
+        gameTypeValue,
         new BN(wagerInt)
       ).accounts({
         gameAccount: gameAccountPDA,
@@ -134,8 +171,16 @@ const App = () => {
   
       // Here gamePubKey is the PublicKey of the game you're joining
       // creatorAddressPubKey is the PublicKey of the creator for the game
-  
+
       const playerPubKey = provider.wallet.publicKey;
+
+      // Generate the gamba_state PDA 
+      const [gambaState, gameAccountBump] = PublicKey.findProgramAddressSync(
+        [
+          Buffer.from("GAMBA_STATE"),
+        ],
+        program.programId
+      );
   
       // Find the associated token accounts for the player and the creator
       const playerAta = getAssociatedTokenAddressSync(
@@ -158,6 +203,7 @@ const App = () => {
       const instruction = await program.methods.joinGame(new BN(creatorFee), new BN(wager))
         .accounts({
           gameAccount: gameAccountPubKey,
+          gambaState: gambaState,
           gameAccountTa: gameAccountTaAccountPDA,
           mint: game.account.mint,
           playerAccount: playerPubKey,
@@ -233,10 +279,19 @@ const App = () => {
         [game.publicKey.toBuffer()],
         program.programId
       );
+
+      // Generate the gamba_state PDA 
+      const [gambaState, gameAccountBump] = PublicKey.findProgramAddressSync(
+        [
+          Buffer.from("GAMBA_STATE"),
+        ],
+        program.programId
+      );
   
       const instruction = await program.methods.settleGame()
         .accounts({
-          rng: provider.wallet.publicKey, // just the user for now
+          rng: provider.wallet.publicKey, 
+          gambaState: gambaState,
           gameMaker: game.account.gameMaker,
           gameAccount: game.publicKey,
           gameAccountTa: gameAccountTaPDA,
@@ -277,23 +332,14 @@ const App = () => {
     }
   };
 
-  useEffect(() => {
-    const fetchInterval = 2000; // Fetch every n milliseconds 
-  
-    const intervalId = setInterval(() => {
-      if (wallet.connected) {
-        fetchGames();
-      }
-    }, fetchInterval);
-  
-    return () => clearInterval(intervalId);
-  }, [wallet.connected]); // Re-run effect if wallet.connected changes
-  
   
   return (
     <div>
       <WalletModalButton />
       <div>Wallet Public Key: {wallet.publicKey?.toString()}</div>
+      <div>
+        <button onClick={gambaConfig}>Gamba Config</button>
+      </div>
       <div>
         <input
           className="input-field"
@@ -331,6 +377,28 @@ const App = () => {
           onChange={(e) => setWinners(e.target.value)}
           placeholder="Winners"
         />
+        <div>
+          <input
+            type="radio"
+            id="sameWager"
+            name="gameType"
+            value={WagerType.SameWager}
+            checked={gameType === WagerType.SameWager}
+            onChange={() => setGameType(WagerType.SameWager)}
+          />
+          <label htmlFor="sameWager">Same Wager</label>
+        </div>
+        <div>
+          <input
+            type="radio"
+            id="customWager"
+            name="gameType"
+            value={WagerType.CustomWager}
+            checked={gameType === WagerType.CustomWager}
+            onChange={() => setGameType(WagerType.CustomWager)}
+          />
+          <label htmlFor="customWager">Custom Wager</label>
+        </div>
       </div>
         <button onClick={createGame}>Create Game</button>
       </div>
