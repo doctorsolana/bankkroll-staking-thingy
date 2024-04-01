@@ -144,15 +144,3 @@ export async function sendTransaction2(
 
 export const formatPublicKey = (publicKey) => publicKey.toString();
 export const formatBN = (bn) => bn.toString();
-export const parseGameState = (stateObject) => {
-  const stateKeys = Object.keys(stateObject);
-  if (stateKeys.length > 0) {
-    const currentState = stateKeys[0];
-    return currentState.charAt(0).toUpperCase() + currentState.slice(1);
-  }
-  return "Unknown State";
-};
-export const parseWagerType = (wagerTypeObject) => {
-  const wagerTypeKeys = Object.keys(wagerTypeObject);
-  return wagerTypeKeys.length > 0 ? wagerTypeKeys[0] : "Unknown";
-};

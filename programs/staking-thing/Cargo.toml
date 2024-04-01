@@ -1,12 +1,12 @@
 [package]
-name = "multiplayer"
+name = "staking_thing"
 version = "0.1.0"
 description = "Created with Anchor"
 edition = "2021"
 
 [lib]
 crate-type = ["cdylib", "lib"]
-name = "multiplayer"
+name = "staking_thing"
 
 [features]
 no-entrypoint = []

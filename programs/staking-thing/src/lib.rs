@@ -18,5 +18,8 @@ pub use state::*;
 mod staking_thing {
     use super::*;
 
+    pub fn create_vault(ctx: Context<CreateVault>) -> Result<()> {
+        Ok(())
+    }
     
 }
