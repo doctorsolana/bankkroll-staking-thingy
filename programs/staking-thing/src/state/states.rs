@@ -1,10 +1,10 @@
 use crate::*;
 
-
 #[account]
 pub struct Vault {
     pub mint: Pubkey,
     pub mint_token_account: Pubkey,
+    pub total_lp: u64,
     pub bump: u8,
 }
 
@@ -14,6 +14,8 @@ pub struct UserAccount {
     pub vault: Pubkey,
     pub lp: u64,
     pub staking_end: i64,
+
+    pub initialized: bool,
     pub bump: u8,
 }
 

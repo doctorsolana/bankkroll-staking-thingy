@@ -21,5 +21,9 @@ mod staking_thing {
     pub fn create_vault(ctx: Context<CreateVault>) -> Result<()> {
         Ok(())
     }
+
+    pub fn deposit(ctx: Context<Deposit>) -> Result<()> {
+        Ok(())
+    }
     
 }

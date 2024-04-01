@@ -2,29 +2,27 @@ use crate::*;
 use anchor_spl::token::{Mint, Token, TokenAccount,};
 
 #[derive(Accounts)]
-pub struct CreateVault<'info> {
+pub struct Deposit<'info> {
     #[account(mut)]
     pub signer: Signer<'info>, // just the creator of the vault
 
-    pub mint: Account<'info, Mint>, //mint account
+    #[account(init_if_needed, payer = signer, space = 200, seeds = [b"VAULT"], bump)]
+    pub user_account: Account<'info, UserAccount>,
 
-    #[account(init, payer = signer, space = 200, seeds = [b"VAULT", mint.key().as_ref()], bump )] // space is placeholder, perhaps you want unique seed for making many vaults with same mint
+    #[account(address = vault.mint)] // make sure mint is the same as saved in vault
+    pub mint: Account<'info, Mint>, 
+
+    #[account(seeds = [b"VAULT", mint.key().as_ref()], bump )] // seed aint super importnat here
     pub vault: Account<'info, Vault>,
 
-    #[account(
-        init,
-        payer = signer,
-        token::mint = mint,
-        token::authority = vault, 
-        seeds = [vault.key().as_ref()], bump
-          )]
-    pub vault_ta: Account<'info, TokenAccount>, // normal token account for vault
+    #[account(mut, seeds = [vault.key().as_ref()], bump)] // seeds make sure its the right token account
+    pub vault_ta: Account<'info, TokenAccount>, 
 
     pub system_program: Program<'info, System>,
     pub token_program: Program<'info, Token>,
 }
 
-pub fn create_game_handler(ctx: Context<CreateVault>) -> Result<()> {
+pub fn deposit_handler(ctx: Context<Deposit>) -> Result<()> {
 
     let vault = &mut ctx.accounts.vault;
 
