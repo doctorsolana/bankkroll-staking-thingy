@@ -3,7 +3,7 @@ use crate::*;
 #[account]
 pub struct Vault {
     pub mint: Pubkey,
-    pub mint_token_account: Pubkey,
+    pub token_account: Pubkey,
     pub total_lp: u64,
     pub bump: u8,
 }
