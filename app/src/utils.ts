@@ -19,7 +19,7 @@ const getErrorLogs = (error: unknown) => {
   return null;
 };
 
-export async function sendTransaction2(
+export async function sendTransaction(
   provider: any,
   instructions:
     | TransactionInstruction

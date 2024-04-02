@@ -7,7 +7,7 @@ import idl from './../../target/idl/staking_thing.json'
 import { useWallet } from '@solana/wallet-adapter-react'
 import { Buffer } from 'buffer'
 import './styles.css'
-import  { sendTransaction2, formatPublicKey, parseGameState, parseWagerType }from './utils.ts'
+import  { sendTransaction, formatPublicKey }from './utils.ts'
 
 const programID = new PublicKey(idl.metadata.address)
 const network = "https://worried-chiquia-fast-devnet.helius-rpc.com/"
@@ -15,7 +15,7 @@ const opts = { preflightCommitment: "processed" }
 
 const App = () => {
   const wallet = useWallet()
-  const [vault, setVaults] = useState([])
+  const [vaults, setVaults] = useState([])
   const [currentBlockchainTime, setCurrentBlockchainTime] = useState(null)
   const [mintAddress, setMintAddress] = useState('')
 
@@ -44,19 +44,17 @@ const App = () => {
       const provider = new AnchorProvider(connection, wallet, opts.preflightCommitment);
       const program = new Program(idl, programID, provider);
   
-      // Fetch all game accounts
-      const vaults = await program.account.vault.all();
+      // Fetch all vaults
+      const vaultsInput = await program.account.vault.all();
       
-      // Fetch and set the current blockchain timestamp for 
-      
+      // Fetch and set the current blockchain timestamp for the UI
       const slot = await connection.getSlot();
       const currentTimestamp = await connection.getBlockTime(slot);
       if (!currentTimestamp) throw new Error('Failed to get current blockchain time');
       setCurrentBlockchainTime(currentTimestamp);
-  
-      setVaults(vaults);
-
-      console.log("Vaults:", vaults);
+      
+      console.log(vaultsInput)
+      setVaults(vaultsInput);
     } catch (error) {
       console.error("Error fetching vaults or blockchain timestamp:", error);
     }
@@ -97,7 +95,7 @@ const App = () => {
         tokenProgram: TOKEN_PROGRAM_ID,
       }).instruction();
 
-      const txId = await sendTransaction2(provider, instruction, undefined, 5000);
+      const txId = await sendTransaction(provider, instruction, undefined, 5000);
 
       console.log("Transaction ID:", txId);
     } catch (error) {
@@ -105,63 +103,57 @@ const App = () => {
     }
   };
 
-  const deposit = async (vault, amount) => {
+  const deposit = async (selectedVault, depositAmount) => {
     try {
       const provider = getProvider();
       const program = new Program(idl, programID, provider);
-  
-      // Here gamePubKey is the PublicKey of the game you're joining
-      // creatorAddressPubKey is the PublicKey of the creator for the game
-
-      const playerPubKey = provider.wallet.publicKey;
-
-      // Generate the gamba_state PDA 
-      const [gambaState, gameAccountBump] = PublicKey.findProgramAddressSync(
-        [
-          Buffer.from("GAMBA_STATE"),
-        ],
+      
+      // Find the PDA for the user's account within this vault
+      const [userAccountPDA] = PublicKey.findProgramAddressSync(
+        [provider.wallet.publicKey.toBuffer(), selectedVault.publicKey.toBuffer()],
         program.programId
       );
   
-      // Find the associated token accounts for the player and the creator
-      const playerAta = getAssociatedTokenAddressSync(
-        game.account.mint,
-        playerPubKey,
-      );
-  
-      const creatorAta = getAssociatedTokenAddressSync(
-        game.account.mint,
-        creatorAddressPubKey,
-      );
-
-      const [gameAccountTaAccountPDA, gameAccountTaAccountBump] = PublicKey.findProgramAddressSync(
-        [game.publicKey.toBuffer()],
+      // Find the PDA for the vault account
+      const [vaultPDA] = PublicKey.findProgramAddressSync(
+        [Buffer.from("VAULT"), selectedVault.account.mint.toBuffer()],
         program.programId
       );
-
-      const gameAccountPubKey = (game.publicKey instanceof PublicKey) ? game.publicKey : new PublicKey(game.publicKey);
   
-      const instruction = await program.methods.joinGame(new BN(creatorFee), new BN(wager))
+      // Find the PDA for the vault's token account
+      const [vaultTaPDA] = PublicKey.findProgramAddressSync(
+        [selectedVault.publicKey.toBuffer()],
+        program.programId
+      );
+  
+      // The user's associated token account for the mint
+      const signerAta = getAssociatedTokenAddressSync(
+        selectedVault.account.mint,
+        provider.wallet.publicKey,
+      );
+
+      // Construct the deposit instruction
+      const instruction = await program.methods.deposit(new BN(depositAmount))
         .accounts({
-          gameAccount: gameAccountPubKey,
-          gambaState: gambaState,
-          gameAccountTa: gameAccountTaAccountPDA,
-          mint: game.account.mint,
-          playerAccount: playerPubKey,
-          playerAta: playerAta,
-          creatorAddress: creatorAddressPubKey,
-          creatorAta: creatorAta,
+          signer: provider.wallet.publicKey,
+          userAccount: userAccountPDA,
+          mint: selectedVault.account.mint,
+          vault: vaultPDA,
+          signerAta: signerAta,
+          vaultTa: vaultTaPDA,
           systemProgram: SystemProgram.programId,
-          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
           tokenProgram: TOKEN_PROGRAM_ID,
+          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
         }).instruction();
   
-      const txId = await sendTransaction2(provider, instruction);
-      console.log("Transaction ID:", txId);
+      // Send the transaction
+      const txId = await sendTransaction(provider, instruction, undefined, 5000);
+      console.log("Deposit Transaction ID:", txId);
     } catch (error) {
-      console.error("Error joining game:", error);
+      console.error("Error making deposit:", error);
     }
   };
+  
 
   
   return (
@@ -180,50 +172,24 @@ const App = () => {
       <div className="button-row">
         <button onClick={fetchVaults}>Refresh Vaults</button>
       </div>
-      {/* <div>
-      {games.map((game, index) => {
-        const expirationTimestamp = new BN(game.account.gameExpirationTimestamp).toNumber();
-        const timeUntilExpiration = currentBlockchainTime ? Math.max(0, expirationTimestamp - currentBlockchainTime) : null;
-  
+      <div>
+      {vaults.map((vault, index) => {
         return (
+          // <div> hello </div>
           <div key={index} className="gameCard">
-            <div>Game Account Public Key: {formatPublicKey(game.publicKey)}</div>
-            <div>Game Maker: {formatPublicKey(game.account.gameMaker)}</div>
-            <div>State: {parseGameState(game.account.state)}</div>
-            <div>Mint: {formatPublicKey(game.account.mint)}</div>
-            <div>Max Players: {game.account.maxPlayers.toString()}</div>
-            <div>Winners: {game.account.winners.toString()}</div>
-            <div>Game ID: {game.account.gameId.toString()}</div>
-            <div>Game Expiration Timestamp: {game.account.gameExpirationTimestamp.toString()}</div>
-            <div>Time Until Expiration: {timeUntilExpiration !== null ? `${timeUntilExpiration} seconds` : 'Loading...'}</div>
-            <div>Unique Identifier: {game.account.uniqueIdentifier.toString()}</div>
-            <div>Wager Type: {parseWagerType(game.account.wagerType)}</div>
-            <div>Wager: {game.account.wager.toString()}</div>
-            <div>
-                Players:
-                {game.account.players.map((player, playerIndex) => (
-                  <div key={playerIndex} className="playerInfo">
-                    <div>Creator ATA: {formatPublicKey(player.creatorAddressAta)}</div>
-                    <div>User ATA: {formatPublicKey(player.userAta)}</div>
-                    <div>Creator Fee: {player.creatorFeeAmount.toString()}</div>
-                    <div>Gamba Fee: {player.gambaFeeAmount.toString()}</div>
-                    <div>Wager: {player.wager.toString()}</div>
-                  </div>
-                ))}
-              </div>
+            <div>Vault Public Key: {formatPublicKey(vault.publicKey)}</div>
+            <div>Mint: {formatPublicKey(vault.account.mint)}</div>
+            <div>Token account: {formatPublicKey(vault.account.tokenAccount)}</div>
+            <div>Total LP outstanding: {vault.account.totalLp.toString()}</div>
             <div className="buttonContainer">
               <div className="joinLeaveButtons">
-                <button onClick={() => joinGame(game, new PublicKey("5r5Sos7CQUNdN9EpwwSu1ujGVnsChv24TmrtjTWkAdNj"), 100, 5000000)}>Join Game</button>
-                <button onClick={() => leaveGame(game)}>Leave Game</button>
+                <button onClick={() => deposit(vault, 100_000)}>Deposit</button>
               </div>
-              {(parseGameState(game.account.state) === 'Playing' || timeUntilExpiration === 0) && (
-                <button className="settleButton" onClick={() => settleGame(game)}>Settle Game</button>
-               )}
             </div>
           </div>
         );
       })}
-      </div> */}
+      </div>
     </div>
   );
 }

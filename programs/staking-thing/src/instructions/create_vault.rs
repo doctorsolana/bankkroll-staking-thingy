@@ -24,7 +24,7 @@ pub struct CreateVault<'info> {
     pub token_program: Program<'info, Token>,
 }
 
-pub fn create_game_handler(ctx: Context<CreateVault>) -> Result<()> {
+pub fn create_vault_handler(ctx: Context<CreateVault>) -> Result<()> {
 
     let vault = &mut ctx.accounts.vault;
 
