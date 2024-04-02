@@ -28,8 +28,8 @@ pub fn create_game_handler(ctx: Context<CreateVault>) -> Result<()> {
 
     let vault = &mut ctx.accounts.vault;
 
-    vault.mint = ctx.accounts.mint.key();
-    vault.token_account = ctx.accounts.vault_ta.key();
+    vault.mint = *ctx.accounts.mint.to_account_info().key;
+    vault.token_account = *ctx.accounts.vault_ta.to_account_info().key;
     vault.bump = *ctx.bumps.get("vault").unwrap(); // anchor 0.28
     // game_account.bump = ctx.bumps.game_account; // anchor 0.29
 

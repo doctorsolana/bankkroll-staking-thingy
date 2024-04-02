@@ -27,8 +27,8 @@ pub struct Deposit<'info> {
 pub fn deposit_handler(ctx: Context<Deposit>, amount: u64) -> Result<()> {
     let user_account = &mut ctx.accounts.user_account;
 
-    user_account.owner = *ctx.accounts.signer.key;
-    user_account.vault = ctx.accounts.vault.key();
+    user_account.owner = *ctx.accounts.signer.to_account_info().key;
+    user_account.vault = *ctx.accounts.vault.to_account_info().key;
     user_account.lp = 0;
     user_account.staking_end = 0;
     user_account.initialized = true;

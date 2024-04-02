@@ -2,9 +2,9 @@
 seeds = false
 skip-lint = false
 [programs.localnet]
-staking_thing = "5BYac1zRF6YKeovvcYrbi3vM1eDseDaMWiM6Lf4VF3ri"
+staking_thing = "2d9Tu5Z3i7dinTgsYmAhUkeLeb8qP3CZ3aY9sE7kxQDX"
 [programs.devnet]
-staking_thing = "5BYac1zRF6YKeovvcYrbi3vM1eDseDaMWiM6Lf4VF3ri"
+staking_thing = "2d9Tu5Z3i7dinTgsYmAhUkeLeb8qP3CZ3aY9sE7kxQDX"
 
 [registry]
 url = "https://api.apr.dev"
